@@ -17,6 +17,8 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - your-network # Change Value
+    security_opt:
+      - no-new-privileges:true
 networks:
     your-network: # Change Value
       external: true
