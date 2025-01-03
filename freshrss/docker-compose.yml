@@ -1,0 +1,22 @@
+services:
+  freshrss:
+    image: lscr.io/linuxserver/freshrss:latest
+    container_name: freshrss
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC #Change to your timezone
+    volumes:
+      - ${PWD}/fresh-rss:/config
+    ports:
+      - 127.0.0.1:88:80
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - webnestify
+networks:
+  webnestify:
+    external: true

@@ -35,7 +35,7 @@ services:
       DATABASE_USER: ${POSTGRES_NON_ROOT_USER}
       DATABASE_PASSWORD: ${POSTGRES_NON_ROOT_PASSWORD}
       DATABASE_HOST: baserow_postgres
- #     DATABASE_PORT: 5432
+      DATABASE_PORT: 5432
  #     FROM_EMAIL: your-sender # Change Value
  #     EMAIL_SMTP: yes
  #     EMAIL_SMTP_HOST: smtp.postmarkapp.com
