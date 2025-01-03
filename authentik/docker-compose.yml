@@ -54,8 +54,8 @@ services:
     env_file:
       - .env
     ports:
-      - 127.0.0.1:"${COMPOSE_PORT_HTTP:-9000}:9000"
-      - 127.0.0.1:"${COMPOSE_PORT_HTTPS:-9443}:9443"
+      - 127.0.0.1:"${COMPOSE_PORT_HTTP:-9000}:9000" #Localhost only with reverse-proxy
+      - 127.0.0.1:"${COMPOSE_PORT_HTTPS:-9443}:9443" #Localhost only with reverse-proxy
     depends_on:
       postgresql:
         condition: service_healthy

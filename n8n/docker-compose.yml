@@ -48,7 +48,7 @@ services:
       - N8N_PROTOCOL=https
       - N8N_HOST=something.example.com # Change Value
     ports:
-      - 127.0.0.1:5678:5678
+      - 127.0.0.1:5678:5678 #Localhost only with reverse-proxy
     links:
       - n8n-postgres
     volumes:

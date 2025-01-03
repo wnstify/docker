@@ -9,7 +9,7 @@ services:
     volumes:
       - ${PWD}/fresh-rss:/config
     ports:
-      - 127.0.0.1:88:80
+      - 127.0.0.1:88:80 #Localhost only with reverse-proxy
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true

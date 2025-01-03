@@ -12,7 +12,7 @@ services:
       - /media-data/movies:/data/movies #Change to your desired location
       - /media-data/shows:/data/shows #Change to your desired location
     ports:
-      - 127.0.0.1:8096:8096
+      - 127.0.0.1:8096:8096 #Localhost only with reverse-proxy
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
