@@ -1,6 +1,8 @@
 # NGINX Proxy Manager
 
-[![NGINX Proxy Manager](https://nginxproxymanager.com/logo.svg)](https://nginxproxymanager.com)
+<p align="center">
+  <img src="https://nginxproxymanager.com/logo.svg" alt="NGINX Proxy Manager Logo" width="300">
+</p>
 
 [NGINX Proxy Manager](https://nginxproxymanager.com) is an easy-to-use and powerful tool for managing reverse proxies with **NGINX**. It provides a user-friendly web interface for managing proxy hosts, SSL certificates, and redirections, making it perfect for individuals and businesses looking to simplify their server management.
 
