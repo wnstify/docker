@@ -1,0 +1,27 @@
+services
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Bratislava
+      - WEBUI_PORT=9160
+    ports:
+      - 9160:9160
+      - 6881:6881
+      - 6881:6881/udp
+    volumes:
+      - ${PWD}/data:/config
+      - /media-data/movies:/movies # Same path as in Jellyfin 
+      - /media-data/shows:/shows # Same path as in Jellyfin
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - webnestify
+    security_opt:
+      - no-new-privileges:true
+networks:
+  webnestify:
+    external: true
