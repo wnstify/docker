@@ -16,7 +16,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
-      - webnestify
+      - your-network # Change Value
 networks:
-  webnestify:
-    external: true
+    your-network: # Change Value
+      external: true
