@@ -1,6 +1,6 @@
 # NGINX Proxy Manager
 
-<p align="center">
+<p align="left">
   <img src="https://nginxproxymanager.com/logo.svg" alt="NGINX Proxy Manager Logo" width="300">
 </p>
 

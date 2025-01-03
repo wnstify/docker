@@ -1,4 +1,7 @@
 # Baserow: The No-Code Database Platform
+<p align="left">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/5/57/Baserow_Logo.png" alt="Baserow Logo" width="300">
+</p>
 [Baserow](https://baserow.io/) is an open-source, no-code database platform that enables users to create, manage, and collaborate on databases with ease. It is a powerful alternative to tools like Airtable, with a focus on flexibility, scalability, and privacy.
 
 ## Advantages of Baserow

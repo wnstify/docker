@@ -1,4 +1,7 @@
 # n8n: The Workflow Automation Platform
+<p align="left">
+  <img src="https://user-images.githubusercontent.com/10284570/173569848-c624317f-42b1-45a6-ab09-f0ea3c247648.png" alt="n8n Image" width="300">
+</p>
 [n8n](https://n8n.io/) is an open-source workflow automation platform that allows users to automate repetitive tasks by connecting various apps and services. It offers a highly customizable and extensible alternative to tools like Zapier.
 
 ## Advantages of n8n
