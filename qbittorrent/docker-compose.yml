@@ -5,7 +5,7 @@ services
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Europe/Bratislava
+      - TZ=Europe/Bratislava #Change to your timezone
       - WEBUI_PORT=9160
     ports:
       - 9160:9160
@@ -19,9 +19,9 @@ services
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
-      - webnestify
+      - your-network # Change Value
     security_opt:
       - no-new-privileges:true
 networks:
-  webnestify:
-    external: true
+    your-network: # Change Value
+      external: true
