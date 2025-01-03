@@ -1,0 +1,22 @@
+services:
+  npm:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '81:81'
+      - '443:443'
+    volumes:
+      - ${PWD}/data:/data
+      - ${PWD}/ssl:/etc/letsencrypt
+    environment:
+      DISABLE_IPV6: 'true' # Change if you want to use IPV6
+      PUID: 1000
+      PGID: 1000
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - your-network # Change Value
+networks:
+    your-network: # Change Value
+      external: true

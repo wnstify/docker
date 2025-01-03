@@ -1,0 +1,23 @@
+services:
+  watchtower:
+    image: containrrr/watchtower:latest
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      - WATCHTOWER_REVIVE_STOPPED=true
+      - WATCHTOWER_LABEL_ENABLE=true 
+      - WATCHTOWER_NOTIFICATIONS=email
+      - WATCHTOWER_NOTIFICATION_EMAIL_FROM= #Add your SMTP Details
+      - WATCHTOWER_NOTIFICATION_EMAIL_TO= #Add your SMTP Details
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER=smtp.postmarkapp.com #Add your SMTP Details
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT=587 #Add your SMTP Details
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_USER= #Add your SMTP Details
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD= #Add your SMTP Details
+    command: --interval 86400
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true" #It will update only containers with this label.
