@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: baserow_postgres
+    restart: always
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+      - POSTGRES_NON_ROOT_USER
+      - POSTGRES_NON_ROOT_PASSWORD
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ${PWD}/db_storage:/var/lib/postgresql/data
+      - ${PWD}/init-data.sh:/docker-entrypoint-initdb.d/init-data.sh
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - your-network # Change Value
+  baserow:
+    container_name: baserow
+    image: baserow/baserow:latest
+    restart: always
+    environment:
+      BASEROW_PUBLIC_URL: 'https://something.example.com/' # Change Value'
+      DATABASE_NAME: ${POSTGRES_DB}
+      DATABASE_USER: ${POSTGRES_NON_ROOT_USER}
+      DATABASE_PASSWORD: ${POSTGRES_NON_ROOT_PASSWORD}
+      DATABASE_HOST: baserow_postgres
+ #     DATABASE_PORT: 5432
+ #     FROM_EMAIL: your-sender # Change Value
+ #     EMAIL_SMTP: yes
+ #     EMAIL_SMTP_HOST: smtp.postmarkapp.com
+ #     EMAIL_SMTP_USE_TLS: yes
+ #     EMAIL_SMTP_PORT: 587
+ #     EMAIL_SMTP_USER: your-api # Change Value
+ #     EMAIL_SMTP_PASSWORD: your-api # Change Value
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - ${PWD}/baserow_data:/baserow/data
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - your-network # Change Value
+networks:
+    your-network: # Change Value
+      external: true
