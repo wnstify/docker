@@ -1,0 +1,29 @@
+services:
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Bratislava #Change to your timezone
+    volumes:
+      - ${PWD}/config:/config
+      - /media-data/media:/data/media #Change to your desired location
+      - /media-data/movies:/data/movies #Change to your desired location
+      - /media-data/shows:/data/shows #Change to your desired location
+    ports:
+      - 8096:8096
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - your-network # Change Value
+### Uncomment only if you have a GPU or Integrated GPU on your server to allow HW Acceleration.
+#    devices:
+#      - /dev/dri/renderD128:/dev/dri/renderD128
+#      - /dev/dri/card0:/dev/dri/card0
+networks:
+    your-network: # Change Value
+      external: true
