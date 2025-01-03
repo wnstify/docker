@@ -1,6 +1,6 @@
 # ![Jellyfin Logo](https://raw.githubusercontent.com/jellyfin/jellyfin-ux/master/branding/SVG/banner-logo-solid.svg?sanitize=true)
 
-[Jellyfin](https://jellyfin.org/){:target="_blank"} is a **free and open-source media server** designed to help you manage and stream your media collections seamlessly. With no tracking, no central servers, and complete control over your media, Jellyfin is a privacy-focused alternative to other media servers.
+[Jellyfin](https://jellyfin.org/) is a **free and open-source media server** designed to help you manage and stream your media collections seamlessly. With no tracking, no central servers, and complete control over your media, Jellyfin is a privacy-focused alternative to other media servers.
 
 ---
 
@@ -21,16 +21,16 @@
 
 Jellyfin thrives on its strong open-source community, where you can find support and contribute to its development. Here are ways to engage:
 
-- **GitHub Repository**: [GitHub](https://github.com/jellyfin/jellyfin){:target="_blank"} for reporting issues, exploring the source code, and contributing.
-- **Official Documentation**: [Documentation](https://jellyfin.org/docs/){:target="_blank"} for setup and usage guides.
-- **Forums and Reddit**: Engage in discussions, share setups, and troubleshoot on [Jellyfin Forums](https://forum.jellyfin.org/){:target="_blank"} and the [r/jellyfin subreddit](https://www.reddit.com/r/jellyfin/){:target="_blank"}.
-- **Discord**: Join the [Jellyfin Discord community](https://discord.com/invite/jellyfin-772232779534172171){:target="_blank"} for real-time discussions.
+- **GitHub Repository**: [GitHub](https://github.com/jellyfin/jellyfin) for reporting issues, exploring the source code, and contributing.
+- **Official Documentation**: [Documentation](https://jellyfin.org/docs/) for setup and usage guides.
+- **Forums and Reddit**: Engage in discussions, share setups, and troubleshoot on [Jellyfin Forums](https://forum.jellyfin.org/) and the [r/jellyfin subreddit](https://www.reddit.com/r/jellyfin/).
+- **Discord**: Join the [Jellyfin Discord community](https://discord.com/invite/jellyfin-772232779534172171) for real-time discussions.
 
 ---
 
 ## Linuxserver.io Community Images
 
-[Linuxserver.io](https://www.linuxserver.io/){:target="_blank"} provides high-quality Docker container images, including a recommended version of Jellyfin. These images are tailored for simplicity, security, and efficient deployment.
+[Linuxserver.io](https://www.linuxserver.io/) provides high-quality Docker container images, including a recommended version of Jellyfin. These images are tailored for simplicity, security, and efficient deployment.
 
 - **Features of Linuxserver.io Images**:
   - Frequent updates with the latest upstream releases.
@@ -38,15 +38,15 @@ Jellyfin thrives on its strong open-source community, where you can find support
   - Comprehensive documentation for setup and customization.
   - A dedicated team of maintainers ensures reliability and support.
 
-For Jellyfin, the Linuxserver.io image is highly recommended for Docker-based deployments. Check the [official documentation](https://docs.linuxserver.io/images/docker-jellyfin/){:target="_blank"} and the [GitHub releases](https://github.com/linuxserver/docker-jellyfin/releases){:target="_blank"} for more details.
+For Jellyfin, the Linuxserver.io image is highly recommended for Docker-based deployments. Check the [official documentation](https://docs.linuxserver.io/images/docker-jellyfin/) and the [GitHub releases](https://github.com/linuxserver/docker-jellyfin/releases) for more details.
 
 ---
 
 ## How to Support Jellyfin
 
 1. **Spread the Word**: Share Jellyfin with friends, family, and online communities.
-2. **Contribute Code**: Join the development team via the [GitHub repository](https://github.com/jellyfin/jellyfin){:target="_blank"}.
-3. **Donate**: Support the project financially via [OpenCollective](https://opencollective.com/jellyfin){:target="_blank"} or other donation platforms.
+2. **Contribute Code**: Join the development team via the [GitHub repository](https://github.com/jellyfin/jellyfin).
+3. **Donate**: Support the project financially via [OpenCollective](https://opencollective.com/jellyfin) or other donation platforms.
 4. **Create Tutorials**: Help new users by sharing your knowledge through blogs or videos.
 5. **Test and Report Issues**: Help improve Jellyfin by reporting bugs or suggesting features.
 
