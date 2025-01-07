@@ -1,6 +1,6 @@
 # Portainer Community Edition (CE)
 <p align="left">
-  <img src="https://www.portainer.io/hubfs/portainer-logo-black.svg" alt="n8n Image" width="300">
+  <img src="https://www.portainer.io/hubfs/portainer-logo-black.svg" alt="portainer Image" width="300">
 
 Portainer Community Edition (CE) is a lightweight, open-source container management solution designed to simplify the deployment and management of containers. With an easy-to-use web-based UI, Portainer CE is perfect for individuals and small teams looking to manage Docker and Kubernetes environments efficiently.
 
