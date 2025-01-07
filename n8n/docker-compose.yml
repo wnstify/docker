@@ -48,7 +48,7 @@ services:
       - N8N_PROTOCOL=https
       - N8N_HOST=something.example.com # Change Value
       - N8N_ENCRYPTION_KEY=your-key # Change Value
-      - GENERIC_TIMEZONE=Europe/Bratislava # Change Value to your Timezone
+      - GENERIC_TIMEZONE=Europe/Bratislava # Change Value to your correct Timezone
     ports:
       - 127.0.0.1:5678:5678 #Localhost only with reverse-proxy
     links:

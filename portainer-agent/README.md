@@ -2,7 +2,8 @@
 
 <p align="left">
   <img src="https://www.portainer.io/hubfs/portainer-logo-black.svg" alt="portainer Image" width="300">
-The **Portainer Agent** is a lightweight application designed to facilitate secure communication between the Portainer server and remote Docker environments. It enables Portainer to manage containerized applications across multiple hosts, regardless of whether they are running on standalone Docker instances, Docker Swarm clusters, or Kubernetes environments.
+  
+The Portainer Agent is a lightweight application designed to facilitate secure communication between the Portainer server and remote Docker environments. It enables Portainer to manage containerized applications across multiple hosts, regardless of whether they are running on standalone Docker instances, Docker Swarm clusters, or Kubernetes environments.
 
 ## Features
 
