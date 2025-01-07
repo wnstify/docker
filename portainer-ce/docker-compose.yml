@@ -1,0 +1,19 @@
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    ports:
+      - 8000:8000
+      - 9443:9443
+      - 9000:9000 # for http
+    volumes:
+      - ${PWD}/portainer/portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - your-network # Change Value
+networks:
+    your-network: # Change Value
+      external: true
