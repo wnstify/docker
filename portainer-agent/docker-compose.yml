@@ -1,0 +1,18 @@
+services:
+  portainer-agent:
+    container_name: portainer-agent
+    image: portainer/agent:latest
+    ports:
+      - "9001:9001"
+    volumes:
+      # Mount the host's Docker socket into the container
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount the host's Docker volumes into the container
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - your-network # Change Value
+networks:
+    your-network: # Change Value
+      external: true
