@@ -4,7 +4,9 @@
   <img src="https://nginxproxymanager.com/logo.svg" alt="NGINX Proxy Manager Logo" width="300">
 </p>
 
-<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/E5_Cklaeg7A?si=njvw51QUJbPsAEhF" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+## Video Tutorial
+
+[![SSL for Everything! Your Ultimate Guide to NGINX Proxy Manager](https://i.ytimg.com/vi/E5_Cklaeg7A/hqdefault.jpg)](https://youtu.be/E5_Cklaeg7A)
 
 [NGINX Proxy Manager](https://nginxproxymanager.com) is an easy-to-use and powerful tool for managing reverse proxies with **NGINX**. It provides a user-friendly web interface for managing proxy hosts, SSL certificates, and redirections, making it perfect for individuals and businesses looking to simplify their server management.
 
