@@ -53,7 +53,7 @@ We love hearing from our community! Stay connected through our socials:
 
 ### Join Our Community
 Join the **Webnestify Discord** to chat, share ideas, and participate in discussions about tutorials, projects, and more:  
-[Join Discord](https://discord.gg/DPx7J9jr)
+[Join Discord](https://wnstify.cc/discord)
 
 ---
 
