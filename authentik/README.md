@@ -1,4 +1,4 @@
-# ![Authentik Logo](https://goauthentik.io/img/icon_left_brand.svg) Authentik
+# ![Authentik Logo](https://goauthentik.io/img/icon_left_brand.svg) Authentik 
 
 [Authentik](https://goauthentik.io/) is an open-source identity provider that offers modern, flexible, and secure solutions for authentication and authorization. With its rich feature set and extensible architecture, Authentik is perfect for self-hosted deployments or integrating with existing infrastructure.
 
