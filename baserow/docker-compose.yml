@@ -29,6 +29,8 @@ services:
     container_name: baserow
     image: baserow/baserow:latest
     restart: always
+    ports:
+      - "127.0.0.1:89:80"
     environment:
       BASEROW_PUBLIC_URL: 'https://something.example.com/' # Change Value'
       DATABASE_NAME: ${POSTGRES_DB}
