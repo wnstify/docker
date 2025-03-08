@@ -1,0 +1,4 @@
+# Copy this block to /etc/caddy/Caddyfile
+br.webnestify.net {
+    reverse_proxy http://localhost:89
+}
