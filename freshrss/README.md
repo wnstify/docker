@@ -1,6 +1,6 @@
 # ![FreshRSS](https://raw.githubusercontent.com/linuxserver/docker-templates/master/linuxserver.io/img/freshrss-banner.png)
 
-[FreshRSS](https://freshrss.org/index.html) is a free, self-hostable RSS feed aggregator. It allows users to manage and customize their RSS feeds efficiently while emphasizing privacy and speed. FreshRSS is lightweight, easy to deploy, and offers powerful features to enhance your feed-reading experience.
+[FreshRSS](https://freshrss.org/index.html) is a free, self-shostable RSS feed aggregator. It allows users to manage and customize their RSS feeds efficiently while emphasizing privacy and speed. FreshRSS is lightweight, easy to deploy, and offers powerful features to enhance your feed-reading experience.
 
 ---
 
