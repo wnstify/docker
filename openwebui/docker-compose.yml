@@ -1,0 +1,30 @@
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:latest
+    container_name: openwebui
+    ports:
+      - "127.0.0.1:8071:8080"
+    environment:
+      # Authentik SSO Config
+    #  - ENABLE_OAUTH_SIGNUP=true
+    #  - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
+    #  - OAUTH_PROVIDER_NAME=authentik
+    #  - OPENID_PROVIDER_URL=
+    #  - OAUTH_CLIENT_ID=
+    #  - OAUTH_CLIENT_SECRET=
+    #  - OAUTH_SCOPES=openid email profile
+    #  - OPENID_REDIRECT_URI=
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ${PWD}data:/app/backend/data
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    restart: unless-stopped
+    networks:
+      - your-network # Change Value
+networks:
+    your-network: # Change Value
+      external: true
