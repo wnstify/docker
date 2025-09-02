@@ -17,7 +17,7 @@ services:
       - PUID=1000
       - PGID=1000
     volumes:
-      - ${PWD}data:/app/backend/data
+      - ${PWD}/data:/app/backend/data
     security_opt:
       - no-new-privileges:true
     labels:
