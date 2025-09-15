@@ -1,0 +1,51 @@
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:2.0.0-beta.4
+    container_name: uptime-kuma
+    ports:
+      - 127.0.0.1:3008:3001  # <Host Port>:<Container Port>
+    restart: always
+    volumes:
+      - ${PWD}/data:/app/data
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UPTIME_KUMA_DB_TYPE=mariadb
+      - UPTIME_KUMA_DB_HOSTNAME=mariadb
+      - UPTIME_KUMA_DB_PORT=3306
+      - UPTIME_KUMA_DB_NAME=${UPTIME_KUMA_DB_NAME}
+      - UPTIME_KUMA_DB_USERNAME=${UPTIME_KUMA_DB_USERNAME}
+      - UPTIME_KUMA_DB_PASSWORD=${UPTIME_KUMA_DB_PASSWORD}
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - your-network
+      - your-db-network
+  mariadb:
+    image: lscr.io/linuxserver/mariadb:latest
+    container_name: mariadb
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Bratislava
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - ${PWD}/config:/config
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - your-db-network
+networks:
+  your-network:
+    external: true
+  your-db-network:
+    external: true
+
