@@ -10,7 +10,7 @@ Welcome to the **Webnestify Docker Project Templates** repository! This collecti
 Hi! I’m Simon, the founder of **Webnestify**. At Webnestify, we are passionate about empowering businesses and developers by providing cutting-edge tools, tutorials, and resources for managing web infrastructure. Our mission is to make complex web hosting and management tasks accessible, cost-effective, and **open-source friendly**.
 
 We specialize in:
-- **Managed Services**: Including broadcast email servers, Cloudflare configuration, and infrastructure optimization, dedicated hosting and much more.
+- **Managed Services**: Including broadcast  email servers, Cloudflare configuration, and infrastructure optimization, dedicated hosting and much more.
 - **Educational Content**: Tutorials, livestreams, and courses for platforms like Docker, WordPress, Cloudflare, and more.
 - **Open-Source Advocacy**: We support open-source projects by creating tailored solutions that give you full control over your data.
 
