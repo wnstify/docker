@@ -16,7 +16,7 @@ We specialize in:
 
 ### Why Webnestify?
 We believe in enabling users to: 
-- **Save Money** by reducing reliance on costly SaaS tools.
+- **Save Money** by reducing reliance on costly SaaS tools. 
 - **Own Their Data** with privacy-focused, self-hosted solutions.
 - **Simplify Management** with intuitive tools and educational resources.
 
