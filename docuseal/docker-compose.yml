@@ -1,0 +1,72 @@
+services:
+  docuseal-app:
+    depends_on:
+      docuseal-postgres:
+        condition: service_healthy
+    image: GET-FROM-DOCUSEAL-DASHBOARD
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:3000:3000
+    volumes:
+      - ${PWD}/data:/data/docuseal
+    environment:
+      - FORCE_SSL=https://your-domain
+      - DATABASE_URL=postgresql://${POSTGRES_NON_ROOT_USER}:${POSTGRES_NON_ROOT_PASSWORD}@docuseal-postgres:5432/${POSTGRES_DB}
+      - GOTENBERG_URLS=http://gotenberg:3000
+      - SECRET_KEY_BASE=
+      - SMTP_USERNAME=
+      - SMTP_PASSWORD=
+      - SMTP_AUTHENTICATION=
+      - SMTP_FROM=
+      - SMTP_ENABLE_STARTTLS_AUTO=true
+      - SMTP_PORT=587
+      - SMTP_DOMAIN=
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - docuseal
+      - docuseal-db
+    security_opt:
+      - no-new-privileges:true
+
+  docuseal-postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+      - POSTGRES_NON_ROOT_USER
+      - POSTGRES_NON_ROOT_PASSWORD
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ${PWD}/db_storage:/var/lib/postgresql/data
+      - ${PWD}/init-data.sh:/docker-entrypoint-initdb.d/init-data.sh
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - docuseal-db
+    security_opt:
+      - no-new-privileges:true
+
+  docuseal-gotenberg:
+    restart: unless-stopped
+    image: gotenberg/gotenberg:latest
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - docuseal
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  docuseal:
+    external: true
+  docuseal-db:
+    external: true
