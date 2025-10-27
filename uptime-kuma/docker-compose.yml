@@ -1,6 +1,6 @@
 services:
   uptime-kuma:
-    image: louislam/uptime-kuma:2.0.0-beta.4
+    image: louislam/uptime-kuma:latest
     container_name: uptime-kuma
     ports:
       - 127.0.0.1:3008:3001  # <Host Port>:<Container Port>
