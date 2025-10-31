@@ -1,0 +1,34 @@
+services:
+  nextcloud-aio-mastercontainer:
+    image: ghcr.io/nextcloud-releases/all-in-one:latest
+    init: true
+    restart: always
+    container_name: nextcloud-aio-mastercontainer
+    volumes:
+      - nextcloud_aio_mastercontainer:/mnt/docker-aio-config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - nextcloud-aio
+    ports:
+      - 8080:8080
+    environment:
+      APACHE_PORT: 11000
+      APACHE_IP_BINDING: 127.0.0.1
+      BORG_RETENTION_POLICY: --keep-within=7d --keep-weekly=4 --keep-monthly=6
+      FULLTEXTSEARCH_JAVA_OPTIONS: "-Xms2048M -Xmx2048M"
+      NEXTCLOUD_DATADIR: /mnt/nextcloud-data
+      NEXTCLOUD_UPLOAD_LIMIT: 40G
+      NEXTCLOUD_MAX_TIME: 7600
+      NEXTCLOUD_MEMORY_LIMIT: 2048M
+      NEXTCLOUD_ADDITIONAL_PHP_EXTENSIONS: imagick
+#      NEXTCLOUD_ENABLE_DRI_DEVICE: true
+      SKIP_DOMAIN_VALIDATION: false
+#      TALK_PORT: 3478
+      WATCHTOWER_DOCKER_SOCKET_PATH: /var/run/docker.sock
+volumes:
+  nextcloud_aio_mastercontainer:
+    name: nextcloud_aio_mastercontainer
+networks:
+  nextcloud-aio:
+    external: true
+    name: nextcloud-aio
