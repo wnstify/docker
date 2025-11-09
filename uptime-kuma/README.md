@@ -13,3 +13,14 @@ The project aims to be an open‑source, privacy‑respecting alternative to thi
 - Supports MariaDB
 - Ready for production
 - Includes healthchecks and best practices
+
+## How to Support Uptime Kuma?
+
+1. **Donate**: Support the development by making a donation through [GH Sponsors](https://github.com/sponsors/louislam) or [Open Collective](https://opencollective.com/uptime-kuma).
+2. **Contribute Code**: Developers can contribute to the project via its [GitHub repository](https://github.com/louislam/uptime-kuma).
+3. **Spread the Word**: Share Uptime Kuma with your friends and online communities.
+4. **Provide Feedback**: Help improve the project by reporting bugs or suggesting new features.
+
+## License
+
+Uptime Kuma is licensed under the **MIT License**. You can read the full license [here](https://github.com/louislam/uptime-kuma?tab=MIT-1-ov-file#readme).
