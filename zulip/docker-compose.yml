@@ -1,0 +1,156 @@
+services:
+  database:
+    image: "zulip/zulip-postgresql:14"
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "zulip"
+      POSTGRES_USER: "zulip"
+      ## Note that you need to do a manual `ALTER ROLE` query if you
+      ## change this on a system after booting the postgres container
+      ## the first time on a host.  Instructions are available in README.md.
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      - "${PWD}/database:/var/lib/postgresql/data:rw"
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - zulip
+    ports:
+      - "127.0.0.1:5432:5432"
+  memcached:
+    image: "memcached:alpine"
+    restart: unless-stopped
+    command:
+      - "sh"
+      - "-euc"
+      - |
+        echo 'mech_list: plain' > "$$SASL_CONF_PATH"
+        echo "zulip@$$HOSTNAME:$$MEMCACHED_PASSWORD" > "$$MEMCACHED_SASL_PWDB"
+        echo "zulip@localhost:$$MEMCACHED_PASSWORD" >> "$$MEMCACHED_SASL_PWDB"
+        exec memcached -S
+    environment:
+      SASL_CONF_PATH: "/home/memcache/memcached.conf"
+      MEMCACHED_SASL_PWDB: "/home/memcache/memcached-sasl-db"
+      MEMCACHED_PASSWORD: "${MEMCACHED_PASSWORD}"
+      PUID: "1000"
+      PGID: "1000"
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - zulip
+    ports:
+      - "127.0.0.1:11211:11211"
+  rabbitmq:
+    image: "rabbitmq:4.1"
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: "zulip"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_DEFAULT_PASS}"
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      - "${PWD}/rabbitmq:/var/lib/rabbitmq:rw"
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - zulip
+  redis:
+    image: "redis:alpine"
+    restart: unless-stopped
+    command:
+      - "sh"
+      - "-euc"
+      - |
+        echo "requirepass '$$REDIS_PASSWORD'" > /etc/redis.conf
+        exec redis-server /etc/redis.conf
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      - "${PWD}/redis:/data:rw"
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - zulip
+    ports:
+      - "127.0.0.1:6379:6379"
+  zulip:
+    image: "zulip/docker-zulip:11.4-0"
+    restart: unless-stopped
+    build:
+      context: .
+      args:
+        ## Change these if you want to build zulip from a different repo/branch
+        ZULIP_GIT_URL: https://github.com/zulip/zulip.git
+        ZULIP_GIT_REF: "11.4"
+        ## Set this up if you plan to use your own CA certificate bundle for building
+        # CUSTOM_CA_CERTIFICATES:
+    ports:
+      - "127.0.0.1:25:25"
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:443:443"
+    environment:
+      ## See https://github.com/zulip/docker-zulip#configuration fordocker 
+      ## details on this section and how to discover the many
+      ## additional settings that are supported here.
+      DB_HOST: "database"
+      DB_HOST_PORT: "5432"
+      DB_USER: "zulip"
+      SSL_CERTIFICATE_GENERATION: "self-signed"
+      SETTING_MEMCACHED_LOCATION: "memcached:11211"
+      SETTING_RABBITMQ_HOST: "rabbitmq"
+      SETTING_REDIS_HOST: "redis"
+      SECRETS_email_password: "${SECRETS_email_password}"
+      ## These should match RABBITMQ_DEFAULT_PASS, POSTGRES_PASSWORD,
+      ## MEMCACHED_PASSWORD, and REDIS_PASSWORD above.
+      SECRETS_rabbitmq_password: "${RABBITMQ_DEFAULT_PASS}"
+      SECRETS_postgres_password: "${POSTGRES_PASSWORD}"
+      SECRETS_memcached_password: "${MEMCACHED_PASSWORD}"
+      SECRETS_redis_password: "${REDIS_PASSWORD}"
+      SECRETS_secret_key: "${SECRETS_secret_key}"
+      SETTING_EXTERNAL_HOST: "add-your-url"
+      SETTING_ZULIP_ADMINISTRATOR: "add-your-email"
+      SETTING_EMAIL_HOST: "smtp.postmarkapp.com"
+      SETTING_EMAIL_HOST_USER: "${SETTING_EMAIL_HOST_USER}"
+      NOREPLY_EMAIL_ADDRESS: "your-sending-email-from"
+      SETTING_EMAIL_PORT: "587"
+      SETTING_EMAIL_USE_SSL: "False"
+      SETTING_EMAIL_USE_TLS: "True"
+      ZULIP_AUTH_BACKENDS: "EmailAuthBackend"
+      http_only: "True"
+      # SETTING_ZULIP_SERVICE_PUSH_NOTIFICATIONS: "True"
+      # SETTING_ZULIP_SERVICE_SUBMIT_USAGE_STATISTICS: "True"
+      LOADBALANCER_IPS: "your-ip" # Add your Reverse-proxy IP
+ #     SETTING_LOCAL_UPLOADS_DIR: "${PWD}/zulip-uploads"
+      # SETTING_S3_AUTH_UPLOADS_BUCKET: ""
+      # SETTING_S3_AVATAR_BUCKET: ""
+      # SETTING_S3_ENDPOINT_URL: "None"
+      # SETTING_S3_REGION: "None"
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      - "${PWD}/zulip-data:/data:rw"
+    ulimits:
+      nofile:
+        soft: 1000000
+        hard: 1048576
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - zulip
+networks:
+  zulip:
+    external: true
