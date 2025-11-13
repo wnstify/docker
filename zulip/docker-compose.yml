@@ -18,7 +18,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
-      - zulip
+      - zulip-db
     ports:
       - "127.0.0.1:5432:5432"
   memcached:
@@ -43,7 +43,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
-      - zulip
+      - zulip-memcached
     ports:
       - "127.0.0.1:11211:11211"
   rabbitmq:
@@ -61,7 +61,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
-      - zulip
+      - zulip-rabbitmq
   redis:
     image: "redis:alpine"
     restart: unless-stopped
@@ -82,7 +82,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
-      - zulip
+      - zulip-redis
     ports:
       - "127.0.0.1:6379:6379"
   zulip:
@@ -151,6 +151,18 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - zulip
+      - zulip-db
+      - zulip-memcached
+      - zulip-rabbitmq
+      - zulip-redis
 networks:
   zulip:
+    external: true
+  zulip-db:
+    external: true
+  zulip-memcached:
+    external: true
+  zulip-rabbitmq:
+    external: true
+  zulip-redis:
     external: true
