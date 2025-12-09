@@ -1,7 +1,7 @@
 ![Webnestify Logo](https://webnestify.cloud/wp-content/uploads/2023/11/webnestify-logo-dark-300x109.png)
 # Webnestify Docker Project Templates
 
-Welcome to the **Webnestify Docker Project Templates** repository! This collection is designed to simplify your journey into deploying and managing open-source applications using Docker. Each template is crafted to ensure a seamless, secure, and scalable deployment experience.
+Welcome to the **Webnestify Docker Project Templates** repository! This collection is designed to simplify your journey into deploying and managing open-source applications using Docker. Each template is crafted to ensure a seamlesss, secure, and scalable deployment experience.
  
 ---
 
