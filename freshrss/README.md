@@ -1,57 +1,105 @@
-# ![FreshRSS](https://raw.githubusercontent.com/linuxserver/docker-templates/master/linuxserver.io/img/freshrss-banner.png)
+# FreshRSS
 
-[FreshRSS](https://freshrss.org/index.html) is a free, self-shostable RSS feed aggregator. It allows users to manage and customize their RSS feeds efficiently while emphasizing privacy and speed. FreshRSS is lightweight, easy to deploy, and offers powerful features to enhance your feed-reading experience.
+<p align="center">
+  <img src="https://freshrss.org/images/icon.svg" alt="FreshRSS Logo" width="150">
+</p>
+
+<p align="center">
+  <a href="https://freshrss.org/">Website</a> •
+  <a href="https://freshrss.github.io/FreshRSS/">Documentation</a> •
+  <a href="https://github.com/FreshRSS/FreshRSS">GitHub</a>
+</p>
 
 ---
+
+[FreshRSS](https://freshrss.org/) is a free, self-hosted RSS feed aggregator. Lightweight, fast, and privacy-focused — manage all your feeds in one place.
 
 ## Features
 
-- **Fast and Lightweight**: Designed to handle a large number of feeds with minimal resource usage.
-- **Multi-User Support**: Ideal for both personal use and shared environments.
-- **Customizable Interface**: Themes, extensions, and layouts to personalize your experience.
-- **Offline Access**: Option to cache articles for offline reading.
-- **API Support**: Integrate with external apps like RSS clients using Google Reader, Fever, or custom APIs.
-- **Statistics and Insights**: Monitor feed activity and trends.
-- **Mobile Friendly**: Responsive design ensures a great experience on any device.
+- **Fast & Lightweight** — Handles thousands of feeds efficiently
+- **Multi-User Support** — Perfect for families or teams
+- **API Support** — Google Reader, Fever API for mobile apps
+- **Customizable** — Themes, extensions, and layouts
+- **Keyboard Shortcuts** — Power-user friendly
+- **Mobile Responsive** — Works on any device
 
----
+## Prerequisites
 
-## Community and Support
+- Docker and Docker Compose
+- External Docker network
+- Reverse proxy (Caddy, Nginx, Traefik)
 
-- **GitHub Repository**: [FreshRSS GitHub](https://github.com/FreshRSS/FreshRSS) for source code, issue tracking, and contributions.
-- **Official Documentation**: Comprehensive guides and FAQs on the [FreshRSS Website](https://freshrss.org/index.html).
-- **Community Forums and Discussions**: Join discussions and find support from other users and developers.
-- **Frequent Updates**: Active development ensures new features, improvements, and security patches.
+## Quick Start
 
----
+### 1. Update Docker Compose
+
+Edit `docker-compose.yml`:
+- Replace `your-network` with your Docker network name
+- Update `TZ` to your timezone
+
+### 2. Deploy
+
+```bash
+docker compose up -d
+```
+
+### 3. Initial Setup
+
+1. Access FreshRSS at your configured domain
+2. Follow the installation wizard
+3. Create your admin account
+4. Start adding RSS feeds
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PUID` | User ID for file permissions | `1000` |
+| `PGID` | Group ID for file permissions | `1000` |
+| `TZ` | Timezone | `Etc/UTC` |
+
+### Reverse Proxy (Caddy)
+
+```
+rss.example.com {
+    reverse_proxy http://localhost:88
+}
+```
+
+## Ports
+
+| Port | Service | Description |
+|------|---------|-------------|
+| 88 | HTTP | Web interface |
+
+## Data Persistence
+
+| Path | Description |
+|------|-------------|
+| `./fresh-rss` | Configuration and data |
+
+## Mobile Apps
+
+FreshRSS supports these mobile apps via API:
+
+- **Android**: FeedMe, EasyRSS, Readrops
+- **iOS**: Reeder, Unread, lire
+- **Cross-platform**: NetNewsWire
+
+Enable the API in FreshRSS settings under "Authentication".
+
+## Support the Project
+
+- ⭐ [Star on GitHub](https://github.com/FreshRSS/FreshRSS)
+- 🐛 [Report Issues](https://github.com/FreshRSS/FreshRSS/issues)
+- 💻 [Contribute Code](https://github.com/FreshRSS/FreshRSS/pulls)
+
+## Docker Image
+
+This template uses the [LinuxServer.io](https://docs.linuxserver.io/images/docker-freshrss/) image, which provides regular updates and consistent configuration.
 
 ## License
 
-FreshRSS is released under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://github.com/FreshRSS/FreshRSS/blob/edge/LICENSE.txt). This ensures it remains free and open-source, with the freedom to modify and distribute.
-
----
-
-## How to Support FreshRSS
-
-- **Contribute**: Submit issues, pull requests, or improvements via the [GitHub repository](https://github.com/FreshRSS/FreshRSS).
-- **Donate**: Check the [official website](https://freshrss.org/index.html) for donation options to support its development.
-- **Spread the Word**: Share FreshRSS with your network or recommend it to others looking for an RSS aggregator.
-- **Build Extensions**: Develop plugins and themes to enhance its functionality.
-
----
-
-## Linuxserver.io Community Images
-
-[Linuxserver.io](https://www.linuxserver.io/) provides high-quality Docker container images, including a recommended version of FreshRSS. These images are tailored for simplicity, security, and efficient deployment.
-
-- **Features of Linuxserver.io Images**:
-  - Frequent updates with the latest upstream releases.
-  - Consistent and secure base images.
-  - Comprehensive documentation for setup and customization.
-  - A dedicated team of maintainers ensures reliability and support.
-
-For FreshRSS, the Linuxserver.io image is highly recommended for Docker-based deployments. Check the [official documentation](https://docs.linuxserver.io/images/docker-freshrss/) and the [GitHub releases](https://github.com/linuxserver/docker-freshrss) for more details.
-
----
-
-FreshRSS empowers you to stay updated and in control of your RSS feeds. Embrace the power of open-source and self-hosting with FreshRSS today! 🚀
+FreshRSS is released under the [AGPL-3.0 License](https://github.com/FreshRSS/FreshRSS/blob/edge/LICENSE.txt).

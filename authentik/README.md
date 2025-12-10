@@ -1,46 +1,103 @@
-# ![Authentik Logo](https://goauthentik.io/img/icon_left_brand.svg) Authentik 
+# Authentik
 
-[Authentik](https://goauthentik.io/) is an open-source identity provider that offers modern, flexible, and secure solutions for authentication and authorization. With its rich feature set and extensible architecture, Authentik is perfect for self-hosted deployments or integrating with existing infrastructure.
+<p align="center">
+  <img src="https://goauthentik.io/img/icon_left_brand.svg" alt="Authentik Logo" width="400">
+</p>
 
-## ⚠️ Important: Required Variables
+<p align="center">
+  <a href="https://goauthentik.io/">Website</a> •
+  <a href="https://docs.goauthentik.io/">Documentation</a> •
+  <a href="https://github.com/goauthentik/authentik">GitHub</a> •
+  <a href="https://goauthentik.io/discord/">Discord</a>
+</p>
 
-Before setting up Authentik, make sure to generate the following secure variables and store them in a `.env` file:
+---
+
+[Authentik](https://goauthentik.io/) is an open-source identity provider offering modern, flexible, and secure authentication and authorization. Perfect for self-hosted deployments or integrating with existing infrastructure.
+
+## Features
+
+- **Single Sign-On (SSO)** — Centralized authentication for all your applications
+- **Multiple Protocols** — OAuth2, OIDC, SAML, LDAP, and SCIM support
+- **Multi-Factor Authentication** — TOTP, WebAuthn, and more
+- **User Management** — Intuitive interface for users, groups, and permissions
+- **Customizable Flows** — Build custom authentication workflows
+- **Self-Hosted** — Full control over your identity infrastructure
+
+## Prerequisites
+
+- Docker and Docker Compose
+- External Docker network
+- Reverse proxy (Caddy, Nginx, Traefik)
+
+## Quick Start
+
+### 1. Generate Required Secrets
 
 ```bash
 echo "PG_PASS=$(openssl rand -base64 36 | tr -d '\n')" >> .env
 echo "AUTHENTIK_SECRET_KEY=$(openssl rand -base64 60 | tr -d '\n')" >> .env
 ```
 
-## Features
+### 2. Configure Environment
 
-- **Self-hosted Identity Provider**: Retain control over your authentication infrastructure.
-- **Single Sign-On (SSO)**: Simplify access to multiple applications with centralized authentication.
-- **Flexible Integrations**: Connect with OAuth2, OIDC, SAML, LDAP, and more.
-- **User Management**: Intuitive interface for managing users, groups, and permissions.
-- **Scalable Architecture**: Designed to scale with your needs, from personal use to enterprise environments.
-- **Advanced Security**: Supports MFA, password policies, and other security features.
+Edit `.env` and update:
+- `PG_USER` — PostgreSQL username
+- `AUTHENTIK_EMAIL__*` — SMTP settings for email notifications
+- `COMPOSE_PORT_HTTP` / `COMPOSE_PORT_HTTPS` — Port mappings
 
-## Community and Support
+### 3. Update Docker Compose
 
-Authentik is backed by a vibrant community of developers and users. Join the conversation, share feedback, and get help:  
-- **GitHub**: [Authentik Repository](https://github.com/goauthentik/authentik)  
-- **Documentation**: [Authentik Docs](https://goauthentik.io/docs/)  
-- **Community**: [Discord](https://goauthentik.io/discord/)
+Edit `docker-compose.yml`:
+- Replace `your-network` with your Docker network name
 
-## How to Support Authentik
+### 4. Deploy
 
-Authentik thrives as an open-source project because of contributions and support from its users. Here’s how you can support this amazing project:  
-- ⭐ **Star the repository on GitHub**: Show your appreciation and increase visibility.  
-- 💬 **Join the community**: Participate in discussions and help other users.  
-- 🛠️ **Contribute**: Fix bugs, improve documentation, or add new features.  
-- 💵 **Donate**: Financial contributions help sustain the project. See [Sponsorship Options](https://github.com/sponsors/goauthentik).  
-- 📢 **Spread the word**: Share Authentik with your friends, colleagues, or on social media.  
-- 🎟️ **Purchase an Enterprise License**: For advanced features, dedicated support, and to further support the project, consider purchasing an [Enterprise license](https://goauthentik.io/pricing/).
+```bash
+docker compose up -d
+```
+
+### 5. Initial Setup
+
+1. Access Authentik at `https://your-domain/if/flow/initial-setup/`
+2. Create your admin account
+3. Configure applications and providers
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PG_USER` | PostgreSQL username | `authentik` |
+| `PG_PASS` | PostgreSQL password | (required) |
+| `AUTHENTIK_SECRET_KEY` | Secret key for encryption | (required) |
+| `AUTHENTIK_EMAIL__HOST` | SMTP server | - |
+| `AUTHENTIK_EMAIL__PORT` | SMTP port | `587` |
+| `AUTHENTIK_EMAIL__FROM` | Sender email address | - |
+
+### Reverse Proxy (Caddy)
+
+```
+auth.example.com {
+    reverse_proxy http://localhost:9000
+}
+```
+
+## Ports
+
+| Port | Service | Description |
+|------|---------|-------------|
+| 9000 | HTTP | Web interface |
+| 9443 | HTTPS | Web interface (TLS) |
+
+## Support the Project
+
+- ⭐ [Star on GitHub](https://github.com/goauthentik/authentik)
+- 💬 [Join Discord](https://goauthentik.io/discord/)
+- 💵 [Sponsor Development](https://github.com/sponsors/goauthentik)
+- 🎟️ [Enterprise License](https://goauthentik.io/pricing/)
 
 ## License
 
 Authentik is released under the [MIT License](https://github.com/goauthentik/authentik/blob/main/LICENSE).
-
----
-
-Start securing your applications today with [Authentik](https://goauthentik.io/)!  

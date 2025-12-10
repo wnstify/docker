@@ -1,68 +1,127 @@
 # Portainer Agent
 
-<p align="left">
-  <img src="https://www.portainer.io/hubfs/portainer-logo-black.svg" alt="portainer Image" width="300">
-  
-The Portainer Agent is a lightweight application designed to facilitate secure communication between the Portainer server and remote Docker environments. It enables Portainer to manage containerized applications across multiple hosts, regardless of whether they are running on standalone Docker instances, Docker Swarm clusters, or Kubernetes environments.
+<p align="center">
+  <img src="https://www.portainer.io/hubfs/portainer-logo-black.svg" alt="Portainer Logo" width="300">
+</p>
+
+<p align="center">
+  <a href="https://www.portainer.io/">Website</a> •
+  <a href="https://docs.portainer.io/">Documentation</a> •
+  <a href="https://github.com/portainer/agent">GitHub</a>
+</p>
+
+---
+
+The [Portainer Agent](https://github.com/portainer/agent) enables secure communication between a Portainer server and remote Docker environments. Deploy it on remote hosts to manage them from a central Portainer instance.
 
 ## Features
 
-- **Remote Management**: Allows the Portainer server to manage remote Docker or Kubernetes environments securely.
-- **Multi-Environment Support**:
-  - Works seamlessly with Docker standalone, Docker Swarm, and Kubernetes clusters.
-- **Secure Communication**:
-  - Uses secure WebSocket connections for data transfer between the Portainer server and the agent.
-- **Efficient Resource Usage**:
-  - Lightweight and optimized to minimize resource consumption on the host system.
-- **Automatic Discovery**:
-  - Automatically detects containers, networks, and volumes in the connected environment.
-- **Firewall-Friendly**:
-  - Operates over a single configurable port, simplifying deployment in restricted network environments.
+- **Remote Management** — Manage Docker hosts from a central location
+- **Secure Communication** — Encrypted WebSocket connections
+- **Multi-Environment** — Works with Docker standalone, Swarm, and Kubernetes
+- **Lightweight** — Minimal resource footprint
+- **Auto-Discovery** — Automatically detects containers, networks, and volumes
+- **Firewall-Friendly** — Single port communication
 
----
+## Prerequisites
 
-## Why Use Portainer Agent?
+- Docker and Docker Compose
+- External Docker network
+- Portainer CE or BE server (see [portainer-ce](../portainer-ce))
 
-- **Simplified Remote Access**: Eliminates the need for direct network access to remote environments.
-- **Centralized Management**: Enables Portainer to manage multiple environments from a single control plane.
-- **Ease of Deployment**: Can be deployed as a Docker container or Kubernetes pod, making it simple to set up.
+## Quick Start
 
----
+### 1. Update Docker Compose
 
-## How It Works
+Edit `docker-compose.yml`:
+- Replace `your-network` with your Docker network name
 
-1. **Communication Bridge**:
-   - The agent acts as a communication bridge between the Portainer server and the target Docker or Kubernetes environment.
-   - Secure WebSocket connections ensure reliable and encrypted communication.
+### 2. Deploy
 
-2. **Environment Integration**:
-   - For Docker, the agent interacts directly with the Docker API to retrieve information about containers, images, networks, and volumes.
-   - For Kubernetes, the agent interacts with the Kubernetes API to provide access to namespaces, workloads, and other resources.
+```bash
+docker compose up -d
+```
 
----
+### 3. Connect to Portainer
 
-## Supported Environments
+1. In your Portainer server, go to **Environments** → **Add environment**
+2. Select **Agent**
+3. Enter the agent URL: `your-remote-host:9001`
+4. Give it a name and connect
 
-- **Docker Standalone**: Manage containers on a single Docker instance.
-- **Docker Swarm**: Manage services and nodes in a Swarm cluster.
-- **Kubernetes**: Manage pods, namespaces, and workloads in Kubernetes clusters.
+## Configuration
 
----
+### Environment Variables
 
-## Community and Support
+The agent works with default settings, but you can customize:
 
-The Portainer Agent is actively maintained and supported by the Portainer community. For additional resources and help:
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AGENT_CLUSTER_ADDR` | Address for cluster communication | - |
+| `AGENT_SECRET` | Shared secret for authentication | - |
+| `LOG_LEVEL` | Logging verbosity | `INFO` |
 
-- **Documentation**: [https://docs.portainer.io](https://docs.portainer.io)
-- **GitHub Repository**: [https://github.com/portainer/agent](https://github.com/portainer/agent)
-- **Community Forums**: [https://forums.portainer.io](https://forums.portainer.io)
+## Ports
 
----
+| Port | Service | Description |
+|------|---------|-------------|
+| 9001 | TCP | Agent API |
 
-## Licensing
+## Data Persistence
 
-The Portainer Agent is licensed under the [zlib license](https://opensource.org/licenses/Zlib), ensuring it is free for personal and commercial use.
+| Path | Description |
+|------|-------------|
+| `/var/run/docker.sock` | Docker socket (required) |
+| `/var/lib/docker/volumes` | Docker volumes (for browsing) |
 
----
+## Security Considerations
 
-The Portainer Agent simplifies container management by extending Portainer's capabilities to remote environments, making it an essential component for multi-host or multi-cluster setups. Start using it today to enhance your container management experience!
+### Firewall Rules
+
+Only allow port 9001 from your Portainer server:
+
+```bash
+# UFW example
+ufw allow from YOUR_PORTAINER_IP to any port 9001
+```
+
+### Agent Secret
+
+For additional security, set a shared secret:
+
+```yaml
+environment:
+  - AGENT_SECRET=your-secure-secret
+```
+
+Then configure the same secret in Portainer when adding the environment.
+
+## Multiple Hosts
+
+Deploy the agent on each remote host you want to manage. Each agent gets its own entry in Portainer.
+
+## Troubleshooting
+
+### Agent Not Connecting
+
+1. Check firewall allows port 9001
+2. Verify Docker socket is mounted correctly
+3. Check agent logs: `docker logs portainer-agent`
+
+### Permission Issues
+
+Ensure the Docker socket is accessible:
+
+```bash
+ls -la /var/run/docker.sock
+```
+
+## Support the Project
+
+- ⭐ [Star on GitHub](https://github.com/portainer/portainer)
+- 📖 [Documentation](https://docs.portainer.io/)
+- 💬 [Community Forums](https://forums.portainer.io/)
+
+## License
+
+Portainer Agent is released under the [zlib License](https://opensource.org/licenses/Zlib).
