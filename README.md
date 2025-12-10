@@ -27,11 +27,52 @@ Production-ready Docker Compose templates for self-hosting open-source applicati
 
 ## Available Templates
 
-| Template | Description | Documentation |
-|----------|-------------|---------------|
-| **[n8n](./n8n)** | Workflow automation platform (Zapier alternative) with PostgreSQL backend | [README](./n8n/README.md) |
-| **[Navidrome](./navidrome)** | Self-hosted music server and streamer compatible with Subsonic/Airsonic | - |
-| **[Watchtower](./watchtower)** | Automatic Docker container updates with email notifications | [README](./watchtower/README.md) |
+### Productivity & Automation
+
+| Template | Description | Docs |
+|----------|-------------|------|
+| [n8n](./n8n) | Workflow automation platform (Zapier alternative) with PostgreSQL | [README](./n8n/README.md) |
+| [Baserow](./baserow) | No-code database platform (Airtable alternative) with PostgreSQL | [README](./baserow/README.md) |
+| [DocuSeal](./docuseal) | Document signing and forms platform | - |
+
+### Media & Entertainment
+
+| Template | Description | Docs |
+|----------|-------------|------|
+| [Jellyfin](./jellyfin) | Free media server for movies, TV, and music | [README](./jellyfin/README.md) |
+| [Navidrome](./navidrome) | Self-hosted music server (Subsonic/Airsonic compatible) | - |
+| [qBittorrent](./qbittorrent) | Feature-rich BitTorrent client with web UI | [README](./qbittorrent/README.md) |
+
+### Infrastructure & DevOps
+
+| Template | Description | Docs |
+|----------|-------------|------|
+| [Portainer CE](./portainer-ce) | Docker container management UI | [README](./portainer-ce/README.md) |
+| [Portainer Agent](./portainer-agent) | Remote Docker environment management | [README](./portainer-agent/README.md) |
+| [NGINX Proxy Manager](./npm) | Reverse proxy with SSL management UI | [README](./npm/README.md) |
+| [Watchtower](./watchtower) | Automatic Docker container updates | [README](./watchtower/README.md) |
+| [Uptime Kuma](./uptime-kuma) | Self-hosted monitoring and status pages | [README](./uptime-kuma/README.md) |
+
+### Identity & Security
+
+| Template | Description | Docs |
+|----------|-------------|------|
+| [Authentik](./authentik) | Identity provider with SSO, OAuth2, SAML, LDAP | [README](./authentik/README.md) |
+
+### Communication & Collaboration
+
+| Template | Description | Docs |
+|----------|-------------|------|
+| [Zulip](./zulip) | Threaded team chat (Slack alternative) | - |
+| [Open WebUI](./openwebui) | Web interface for LLMs (ChatGPT alternative) | [README](./openwebui/README.md) |
+
+### Content & Information
+
+| Template | Description | Docs |
+|----------|-------------|------|
+| [FreshRSS](./freshrss) | Self-hosted RSS feed aggregator | [README](./freshrss/README.md) |
+| [SerpBear](./serpbear) | SEO rank tracking tool | - |
+| [Nextcloud AIO](./nextcloud-aio) | All-in-one file sync and collaboration platform | [README](./nextcloud-aio/README.md) |
 
 ---
 
@@ -39,7 +80,7 @@ Production-ready Docker Compose templates for self-hosting open-source applicati
 
 - **Docker** v20.10 or higher
 - **Docker Compose** v2.0 or higher
-- A **reverse proxy** (Caddy, Nginx, or Traefik) for HTTPS termination
+- A **reverse proxy** (Caddy, Nginx Proxy Manager, or Traefik) for HTTPS termination
 - A **Docker network** for inter-container communication
 
 ### Create a Docker Network
@@ -82,7 +123,7 @@ Replace `your-network` with your preferred network name and update all `docker-c
    docker compose up -d
    ```
 
-6. **Set up your reverse proxy** (see Caddyfile examples in each template directory)
+6. **Set up your reverse proxy** (see Caddyfile examples in template directories)
 
 ---
 
@@ -92,17 +133,83 @@ Replace `your-network` with your preferred network name and update all `docker-c
 docker/
 ├── README.md
 ├── SECURITY.md
+├── LICENSE
+├── .gitignore
+│
+├── authentik/
+│   ├── docker-compose.yml
+│   ├── .env
+│   └── README.md
+│
+├── baserow/
+│   ├── docker-compose.yml
+│   ├── .env
+│   ├── init-data.sh
+│   ├── Caddyfile
+│   └── README.md
+│
+├── docuseal/
+│   ├── docker-compose.yml
+│   ├── .env
+│   └── init-data.sh
+│
+├── freshrss/
+│   ├── docker-compose.yml
+│   └── README.md
+│
+├── jellyfin/
+│   ├── docker-compose.yml
+│   └── README.md
+│
 ├── n8n/
-│   ├── docker-compose.yml    # Main compose file
-│   ├── .env                  # Environment variables (gitignored)
-│   ├── init-data.sh          # PostgreSQL initialization script
-│   ├── Caddyfile             # Reverse proxy example
-│   └── README.md             # n8n-specific documentation
+│   ├── docker-compose.yml
+│   ├── .env
+│   ├── init-data.sh
+│   ├── Caddyfile
+│   └── README.md
+│
 ├── navidrome/
 │   └── docker-compose.yml
-└── watchtower/
+│
+├── nextcloud-aio/
+│   ├── docker-compose.yml
+│   └── README.md
+│
+├── npm/
+│   ├── docker-compose.yml
+│   └── README.md
+│
+├── openwebui/
+│   ├── docker-compose.yml
+│   └── README.md
+│
+├── portainer-agent/
+│   ├── docker-compose.yml
+│   └── README.md
+│
+├── portainer-ce/
+│   ├── docker-compose.yml
+│   └── README.md
+│
+├── qbittorrent/
+│   ├── docker-compose.yml
+│   └── README.md
+│
+├── serpbear/
+│   └── docker-compose.yml
+│
+├── uptime-kuma/
+│   ├── docker-compose.yml
+│   ├── .env
+│   └── README.md
+│
+├── watchtower/
+│   ├── docker-compose.yml
+│   └── README.md
+│
+└── zulip/
     ├── docker-compose.yml
-    └── README.md
+    └── .env
 ```
 
 ---
@@ -111,17 +218,27 @@ docker/
 
 ### Environment Variables
 
-Each template uses `.env` files for sensitive configuration. **Never commit credentials to version control.**
+Each template uses `.env` files for sensitive configuration. **Never commit real credentials to version control.**
+
+Example `.env` structure:
+```bash
+POSTGRES_USER=changeUser
+POSTGRES_PASSWORD=changePassword
+POSTGRES_DB=appname
+```
 
 ### Reverse Proxy
 
-All templates bind to `127.0.0.1` (localhost only) and require a reverse proxy for external access. Example Caddy configuration:
+All templates bind to `127.0.0.1` (localhost only) and require a reverse proxy for external access.
 
+**Caddy example:**
 ```
 your-domain.com {
     reverse_proxy http://localhost:5678
 }
 ```
+
+**NGINX Proxy Manager:** Use the included [npm template](./npm) for a GUI-based approach.
 
 ### Automatic Updates
 
@@ -134,17 +251,24 @@ labels:
 
 Deploy the [Watchtower template](./watchtower) to enable automatic container updates.
 
+### PostgreSQL Initialization
+
+Several templates (n8n, Baserow, DocuSeal) include an `init-data.sh` script that creates a non-root database user on first run. This follows the principle of least privilege.
+
 ---
 
 ## Security Features
 
 All templates are configured with security best practices:
 
-- **`no-new-privileges:true`** — Prevents privilege escalation inside containers
-- **Localhost binding** — Services only accessible via reverse proxy
-- **Non-root database users** — Principle of least privilege for database access
-- **Health checks** — Ensures dependencies are ready before starting dependent services
-- **External networks** — Isolated networking between container stacks
+| Feature | Description |
+|---------|-------------|
+| `no-new-privileges:true` | Prevents privilege escalation inside containers |
+| Localhost binding | Services only accessible via reverse proxy |
+| Non-root database users | Principle of least privilege for database access |
+| Health checks | Ensures dependencies are ready before starting services |
+| External networks | Isolated networking between container stacks |
+| PUID/PGID settings | Consistent file permissions across containers |
 
 For security concerns or vulnerability reports, please see our [Security Policy](SECURITY.md).
 
@@ -152,16 +276,16 @@ For security concerns or vulnerability reports, please see our [Security Policy]
 
 ## About Webnestify
 
-**Webnestify** empowers businesses and developers with tools for managing web infrastructure. We believe in enabling users to:
+**Webnestify** empowers businesses and developers with tools for managing web infrastructure. We believe in:
 
-- **Save Money** — Reduce reliance on costly SaaS tools
-- **Own Their Data** — Privacy-focused, self-hosted solutions
-- **Simplify Management** — Intuitive tools and educational resources
+- **Saving Money** — Reduce reliance on costly SaaS tools
+- **Owning Your Data** — Privacy-focused, self-hosted solutions
+- **Simplifying Management** — Intuitive tools and educational resources
 
 ### What We Offer
 
 - **Managed Services** — Email servers, Cloudflare configuration, dedicated hosting
-- **Educational Content** — Tutorials, livestreams, and courses
+- **Educational Content** — Tutorials, livestreams, and courses on [YouTube](https://youtube.com/@webnestify)
 - **Open-Source Advocacy** — Tailored solutions that give you full control
 
 Learn more at [webnestify.cloud](https://webnestify.cloud)
@@ -184,14 +308,15 @@ When adding new templates, please include:
 
 - `docker-compose.yml` with security options and Watchtower labels
 - `.env.example` with placeholder values (no real credentials)
-- `README.md` with setup instructions
-- `Caddyfile` example for reverse proxy configuration
+- `README.md` with setup instructions and links to official docs
+- `Caddyfile` example for reverse proxy configuration (if applicable)
+- Bind ports to `127.0.0.1` for reverse proxy setups
+- Use `no-new-privileges:true` security option
 
 ---
 
 ## Support
 
-- **Documentation**: [docs.webnestify.com](https://docs.webnestify.com/)
 - **YouTube Tutorials**: [@webnestify](https://youtube.com/@webnestify)
 - **Discord Community**: [Join Discord](https://wnstify.cc/discord)
 - **Contact**: [webnestify.cloud/contact](https://webnestify.cloud/contact)
