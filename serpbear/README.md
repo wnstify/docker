@@ -28,36 +28,46 @@
 ## Prerequisites
 
 - Docker and Docker Compose
+- External Docker network
 - Reverse proxy (Caddy, Nginx, Traefik)
 
 ## Quick Start
 
 ### 1. Configure Environment
 
-Edit `docker-compose.yml` and set these required variables:
-
-```yaml
-environment:
-  - USER=your-username
-  - PASSWORD=your-secure-password
-  - SECRET=your-random-secret-key
-  - APIKEY=your-api-key
-  - NEXT_PUBLIC_APP_URL=https://seo.example.com
-```
-
-Generate a secret key:
+Copy and edit the environment file:
 
 ```bash
+cp .env.example .env
+nano .env
+```
+
+Generate secure keys:
+
+```bash
+# Generate SECRET and APIKEY
 openssl rand -hex 32
 ```
 
-### 2. Deploy
+Update these values in `.env`:
+- `SERPBEAR_USER` — Login username
+- `SERPBEAR_PASSWORD` — Login password (use a strong password)
+- `SERPBEAR_SECRET` — Session secret key
+- `SERPBEAR_APIKEY` — API access key
+- `SERPBEAR_URL` — Your public URL
+
+### 2. Update Docker Compose
+
+Edit `docker-compose.yml`:
+- Replace `your-network` with your Docker network name
+
+### 3. Deploy
 
 ```bash
 docker compose up -d
 ```
 
-### 3. Access SerpBear
+### 4. Access SerpBear
 
 Navigate to your configured URL and login with your credentials.
 
@@ -67,13 +77,11 @@ Navigate to your configured URL and login with your credentials.
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `USER` | Login username | Yes |
-| `PASSWORD` | Login password | Yes |
-| `SECRET` | Session secret key | Yes |
-| `APIKEY` | API access key | Yes |
-| `NEXT_PUBLIC_APP_URL` | Public URL | Yes |
-| `PUID` | User ID for file permissions | No |
-| `PGID` | Group ID for file permissions | No |
+| `SERPBEAR_USER` | Login username | Yes |
+| `SERPBEAR_PASSWORD` | Login password | Yes |
+| `SERPBEAR_SECRET` | Session secret key (hex string) | Yes |
+| `SERPBEAR_APIKEY` | API access key | Yes |
+| `SERPBEAR_URL` | Public URL with https:// | Yes |
 
 ### Reverse Proxy (Caddy)
 
@@ -123,6 +131,15 @@ Configure proxies in the settings:
 - HTTP proxies
 - SOCKS5 proxies
 - Rotating proxy services
+
+## API Usage
+
+Use the API key to access SerpBear's REST API:
+
+```bash
+curl -H "Authorization: Bearer YOUR_APIKEY" \
+  https://seo.example.com/api/domains
+```
 
 ## Support the Project
 

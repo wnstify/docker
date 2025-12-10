@@ -1,15 +1,16 @@
 services:
   serpbear-app:
     image: towfiqi/serpbear
+    container_name: serpbear
     restart: unless-stopped
     ports:
       - 127.0.0.1:3000:3000
     environment:
-      - USER=
-      - PASSWORD=
-      - SECRET=
-      - APIKEY=
-      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - USER=${SERPBEAR_USER}
+      - PASSWORD=${SERPBEAR_PASSWORD}
+      - SECRET=${SERPBEAR_SECRET}
+      - APIKEY=${SERPBEAR_APIKEY}
+      - NEXT_PUBLIC_APP_URL=${SERPBEAR_URL}
       - PUID=1000
       - PGID=1000
     volumes:
@@ -17,9 +18,9 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
-      - serpbear
+      - your-network # Change Value
     security_opt:
       - no-new-privileges:true
 networks:
-  serpbear:
-    driver: bridge
+  your-network: # Change Value
+    external: true
