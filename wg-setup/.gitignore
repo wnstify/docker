@@ -1,0 +1,10 @@
+# Backup files
+*.bak
+
+# Container data
+pihole/etc-pihole/
+wireguard/
+
+# OS files
+.DS_Store
+Thumbs.db
