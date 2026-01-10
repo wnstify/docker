@@ -44,7 +44,7 @@ services:
         ipv4_address: 10.0.0.200
     environment:
       - WG_HOST=37.9.170.96
-      - PASSWORD_HASH=$$2a$$10$$8U89a.FbvnYM4.5XqkZZf.XuUogqJ9Zx1hQRePOPPU1IGmnBJgRy2
+      - PASSWORD_HASH=
       
       # ⚠️ VPN Tunnel IPs (Clients get 10.8.0.2, 10.8.0.3, etc.)
       # This MUST be different from the Docker network (10.0.0.x)
