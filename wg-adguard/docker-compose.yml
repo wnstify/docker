@@ -2,6 +2,7 @@
   # ADGUARD HOME (DNS & AdBlock)
   # Internal IP: 10.0.0.100
   # ══════════════════════════════════════════════════════════════════════════════
+services:
   adguard:
     image: adguard/adguardhome:latest
     container_name: adguard_home
