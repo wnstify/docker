@@ -1,6 +1,7 @@
 # Stoat (formerly Revolt) — Hardened Docker Compose
 # Security: cap_drop ALL, no-new-privileges, ipc private, read_only,
 #           tmpfs, resource limits, internal networks, healthchecks.
+#           All containers run as UID 1000:1000.
 #
 # Requires: .env, secrets.env, .env.web, Revolt.toml, garage.toml,
 #           livekit.yml, Caddyfile
@@ -13,6 +14,8 @@ name: stoat
 # SHARED HARDENING ANCHOR
 # =============================================================================
 
+# Stoat Rust images run as 'nonroot' (UID 65532) by default.
+# Infrastructure services run as 1000:1000 with pre-owned data dirs.
 x-stoat-hardening: &stoat-hardening
   cap_drop:
     - ALL
@@ -37,19 +40,22 @@ services:
   database:
     image: docker.io/mongo:7
     restart: unless-stopped
+    user: "1000:1000"
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    command: mongod --auth --bind_ip_all
     volumes:
       - ./data/db:/data/db
     networks:
       - stoat-data
-    <<: *stoat-hardening
-    cap_add:
-      - CHOWN
-      - SETUID
-      - SETGID
-      - DAC_OVERRIDE
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=256m
     deploy:
       resources:
         limits:
@@ -69,18 +75,21 @@ services:
   redis:
     image: docker.io/redis:8-alpine
     restart: unless-stopped
+    user: "1000:1000"
     command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1 --loglevel warning
     volumes:
       - ./data/redis:/data
     networks:
       - stoat-data
       - stoat-voice
-    <<: *stoat-hardening
-    cap_add:
-      - CHOWN
-      - SETUID
-      - SETGID
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
     read_only: true
+    tmpfs:
+      - /tmp:size=256m
     deploy:
       resources:
         limits:
@@ -100,6 +109,7 @@ services:
   rabbit:
     image: docker.io/rabbitmq:4-alpine
     restart: unless-stopped
+    user: "1000:1000"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD}
@@ -107,12 +117,13 @@ services:
       - ./data/rabbit:/var/lib/rabbitmq
     networks:
       - stoat-rabbit
-    <<: *stoat-hardening
-    cap_add:
-      - CHOWN
-      - SETUID
-      - SETGID
-      - DAC_OVERRIDE
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=256m
     deploy:
       resources:
         limits:
@@ -133,16 +144,20 @@ services:
   garage:
     image: docker.io/dxflrs/garage:v2.2.0
     restart: unless-stopped
+    user: "1000:1000"
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
       - ./data/garage-meta:/var/lib/garage/meta
       - ./data/garage-data:/var/lib/garage/data
     networks:
       - stoat-data
-    <<: *stoat-hardening
-    # scratch image runs as root; needs DAC_OVERRIDE for bind-mount writes
-    cap_add:
-      - DAC_OVERRIDE
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=256m
     deploy:
       resources:
         limits:
@@ -363,6 +378,7 @@ services:
   livekit:
     image: ghcr.io/stoatchat/livekit-server:v1.9.13
     restart: unless-stopped
+    user: "1000:1000"
     command: --config /etc/livekit.yml
     depends_on:
       redis:
@@ -380,8 +396,14 @@ services:
       - stoat-app
       - stoat-voice
       - stoat-frontend  # needs outbound DNS for STUN (external IP discovery)
-    <<: *stoat-hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
     read_only: true
+    tmpfs:
+      - /tmp:size=256m
     deploy:
       resources:
         limits:
@@ -411,12 +433,13 @@ services:
           cpus: "0.05"
 
 # =============================================================================
-# REVERSE PROXY (internal — Pangolin handles external TLS)
+# REVERSE PROXY (internal — reverse proxy handles external TLS)
 # =============================================================================
 
   caddy:
     image: docker.io/caddy:latest
     restart: unless-stopped
+    # caddy binary has file capabilities — must run as root with cap_drop ALL
     env_file: .env.web
     ports:
       - "127.0.0.1:8880:80"
@@ -466,6 +489,7 @@ services:
   # Garage bootstrap: assigns layout, creates S3 bucket and API key
   garage-init:
     image: docker.io/alpine:3
+    # needs root for apk add; one-shot container, exits immediately
     depends_on:
       garage:
         condition: service_started

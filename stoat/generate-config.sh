@@ -34,8 +34,9 @@ for f in .env secrets.env .env.web Revolt.toml garage.toml livekit.yml; do
     fi
 done
 
-# ── create data directories ─────────────────────────────────────────────────
+# ── create data directories (owned by 1000:1000 for non-root containers) ────
 mkdir -p data/{db,redis,rabbit,garage-meta,garage-data}
+chown -R 1000:1000 data/ 2>/dev/null || true
 
 # ── generate infrastructure credentials ──────────────────────────────────────
 MONGO_ROOT_USER="stoat"
