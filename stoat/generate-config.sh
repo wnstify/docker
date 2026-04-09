@@ -22,6 +22,11 @@ if [[ "${2:-}" == "--enable-video" ]]; then
     VIDEO_ENABLED="true"
 fi
 
+# ── detect current user ──────────────────────────────────────────────────────
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
+echo "Detected UID:GID = ${HOST_UID}:${HOST_GID}"
+
 # ── helpers ──────────────────────────────────────────────────────────────────
 rand_hex()  { openssl rand -hex "$1"; }
 rand_b64()  { openssl rand -base64 "$1"; }
@@ -34,9 +39,9 @@ for f in .env secrets.env .env.web Revolt.toml garage.toml livekit.yml; do
     fi
 done
 
-# ── create data directories (owned by 1000:1000 for non-root containers) ────
+# ── create data directories (owned by current user for non-root containers) ─
 mkdir -p data/{db,redis,rabbit,garage-meta,garage-data}
-chown -R 1000:1000 data/ 2>/dev/null || true
+chown -R "${HOST_UID}:${HOST_GID}" data/ 2>/dev/null || true
 
 # ── generate infrastructure credentials ──────────────────────────────────────
 MONGO_ROOT_USER="stoat"
@@ -68,6 +73,8 @@ rm -f /tmp/vapid_private.pem
 cat > .env <<EOF
 # Auto-generated — do not edit manually
 # Infrastructure credentials for docker compose services
+PUID=${HOST_UID}
+PGID=${HOST_GID}
 STOAT_DOMAIN=${DOMAIN}
 MONGO_ROOT_USER=${MONGO_ROOT_USER}
 MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}

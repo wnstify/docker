@@ -8,6 +8,18 @@
 ./generate-config.sh <domain> [--enable-video]
 ```
 
+The script automatically detects your current UID/GID (via `id -u` and `id -g`) and configures all containers to run as that user. Data directories are pre-owned accordingly. The detected values are stored as `PUID` and `PGID` in `.env`.
+
+If you need to run as a different user, edit `PUID` and `PGID` in `.env` and re-own the data directories:
+
+```bash
+# Example: switch to UID 1001
+sed -i 's/^PUID=.*/PUID=1001/' .env
+sed -i 's/^PGID=.*/PGID=1001/' .env
+chown -R 1001:1001 data/
+docker compose up -d
+```
+
 This creates all config files and data directories:
 
 | File | Purpose |

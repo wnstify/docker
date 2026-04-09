@@ -31,19 +31,26 @@ Services that require writable filesystems:
 | web | `inject.js` writes to `/app/dist_injected` at startup |
 | autumn | Temporary file processing during uploads |
 
-### Minimal Capability Grants
+### Non-Root Execution
 
-Where `cap_drop: ALL` breaks functionality, only the minimum capabilities are added back:
+All containers run as non-root:
+
+| Service | User | How |
+|---------|------|-----|
+| database, redis, rabbit, garage, livekit | `${PUID}:${PGID}` | Auto-detected from the host user running `generate-config.sh` |
+| api, events, autumn, january, gifbox, crond, pushd, voice-ingress | `nonroot` (UID 65532) | Built into the Stoat container images |
+| web | root | Upstream image requires write access for `inject.js` |
+| caddy | root | Binary has file capabilities requiring root |
+| garage-init | root | One-shot init container, needs `apk add` |
+
+Data directories are pre-owned as `${PUID}:${PGID}` by `generate-config.sh`, eliminating the need for `CHOWN`/`SETUID`/`SETGID` capabilities on infrastructure containers.
+
+### Minimal Capability Grants
 
 | Service | Capabilities | Reason |
 |---------|-------------|--------|
-| database | `CHOWN`, `SETUID`, `SETGID`, `DAC_OVERRIDE` | Entrypoint chowns data dir, switches to mongodb user |
-| redis | `CHOWN`, `SETUID`, `SETGID` | Entrypoint chowns data dir, switches to redis user |
-| rabbit | `CHOWN`, `SETUID`, `SETGID`, `DAC_OVERRIDE` | Entrypoint chowns data dir, switches to rabbitmq user |
-| garage | `DAC_OVERRIDE` | Scratch image runs as root, needs write to bind mounts |
-| caddy | `NET_BIND_SERVICE` | Caddy binary requires this for port binding |
-
-All other services run with zero capabilities.
+| caddy | `NET_BIND_SERVICE` | Caddy binary has file capabilities requiring this |
+| All others | **None** | Zero capabilities granted |
 
 ## Network Segmentation
 
@@ -186,6 +193,6 @@ Garage healthcheck is disabled (scratch image, no shell). The `garage-init` cont
 
 2. **Web container not read-only**: The Stoat web frontend runs `inject.js` at startup which writes to the filesystem. This is a limitation of the upstream image.
 
-3. **Garage runs as root**: The Garage image is scratch-based with no user switching. It runs as UID 0 with `DAC_OVERRIDE` as the only granted capability.
+3. **Web and Caddy run as root**: The web frontend needs filesystem writes for `inject.js`. Caddy's binary has file capabilities that require root. Both are locked down with `cap_drop: ALL` (Caddy gets only `NET_BIND_SERVICE`).
 
-4. **Stock image capabilities**: MongoDB, Redis, and RabbitMQ official images require `CHOWN`/`SETUID`/`SETGID` for their entrypoint scripts. Custom images with pre-set UID ownership can eliminate this requirement.
+4. **garage-init runs as root**: One-shot init container that needs `apk add` for curl/jq. Exits immediately after configuring Garage S3.

@@ -15,7 +15,7 @@ name: stoat
 # =============================================================================
 
 # Stoat Rust images run as 'nonroot' (UID 65532) by default.
-# Infrastructure services run as 1000:1000 with pre-owned data dirs.
+# Infrastructure services run as ${PUID}:${PGID} (auto-detected by generate-config.sh).
 x-stoat-hardening: &stoat-hardening
   cap_drop:
     - ALL
@@ -40,7 +40,7 @@ services:
   database:
     image: docker.io/mongo:7
     restart: unless-stopped
-    user: "1000:1000"
+    user: "${PUID}:${PGID}"
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
@@ -75,7 +75,7 @@ services:
   redis:
     image: docker.io/redis:8-alpine
     restart: unless-stopped
-    user: "1000:1000"
+    user: "${PUID}:${PGID}"
     command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1 --loglevel warning
     volumes:
       - ./data/redis:/data
@@ -109,7 +109,7 @@ services:
   rabbit:
     image: docker.io/rabbitmq:4-alpine
     restart: unless-stopped
-    user: "1000:1000"
+    user: "${PUID}:${PGID}"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD}
@@ -144,7 +144,7 @@ services:
   garage:
     image: docker.io/dxflrs/garage:v2.2.0
     restart: unless-stopped
-    user: "1000:1000"
+    user: "${PUID}:${PGID}"
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
       - ./data/garage-meta:/var/lib/garage/meta
@@ -378,7 +378,7 @@ services:
   livekit:
     image: ghcr.io/stoatchat/livekit-server:v1.9.13
     restart: unless-stopped
-    user: "1000:1000"
+    user: "${PUID}:${PGID}"
     command: --config /etc/livekit.yml
     depends_on:
       redis:
