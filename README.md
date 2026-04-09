@@ -64,6 +64,7 @@ Production-ready Docker Compose templates for self-hosting open-source applicati
 
 | Template | Description | Docs |
 |----------|-------------|------|
+| [Stoat](./stoat) | Self-hosted Discord alternative with voice/video (formerly Revolt) | [README](./stoat/README.md) |
 | [Zulip](./zulip) | Threaded team chat (Slack alternative) | - |
 | [Open WebUI](./openwebui) | Web interface for LLMs (ChatGPT alternative) | [README](./openwebui/README.md) |
 
@@ -198,6 +199,16 @@ docker/
 │
 ├── serpbear/
 │   └── docker-compose.yml
+│
+├── stoat/
+│   ├── docker-compose.yml
+│   ├── Caddyfile
+│   ├── generate-config.sh
+│   ├── init-scripts/
+│   │   └── init-garage.sh
+│   ├── README.md
+│   ├── USAGE.md
+│   └── SECURITY.md
 │
 ├── uptime-kuma/
 │   ├── docker-compose.yml
