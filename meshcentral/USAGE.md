@@ -118,6 +118,39 @@ Add to `config.json` under `"domains" > ""`:
 }
 ```
 
+### SSO with Authentik (OIDC)
+
+MeshCentral supports OpenID Connect for single sign-on. To integrate with Authentik:
+
+**1. Create an Authentik provider:**
+- Type: OAuth2/OpenID Provider
+- Redirect URI: `https://rmm.yourdomain.com/auth-oidc-callback`
+- Scopes: `openid`, `email`, `profile`
+
+**2. Create an Authentik application** linked to that provider.
+
+**3. Add to `config.json`** under `"domains" > ""`:
+```json
+{
+  "domains": {
+    "": {
+      "authStrategies": {
+        "oidc": {
+          "issuer": "https://auth.yourdomain.com/application/o/meshcentral/",
+          "clientid": "<client-id-from-authentik>",
+          "clientsecret": "<client-secret-from-authentik>",
+          "newAccounts": true
+        }
+      }
+    }
+  }
+}
+```
+
+The `"newAccounts": true` inside the `oidc` block auto-provisions SSO users on first login, while direct registration stays disabled (the main `"newAccounts": false` still applies).
+
+**4. Restart:** `docker compose restart meshcentral`
+
 ### Intel AMT (optional)
 
 Add to `config.json` under `"settings"`:
