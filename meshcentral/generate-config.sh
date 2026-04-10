@@ -5,21 +5,39 @@ set -euo pipefail
 # MeshCentral RMM — Non-interactive config generator
 # Generates: .env, config.json, data directories
 #
-# Usage: ./generate-config.sh <domain>
+# Usage: ./generate-config.sh <domain> [--tailscale <ip>]
 # ─────────────────────────────────────────────────────────────────────────────
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: ./generate-config.sh <domain>"
-    echo "  domain    Your MeshCentral domain (e.g. rmm.example.com)"
+    echo "Usage: ./generate-config.sh <domain> [--tailscale <ip>]"
+    echo "  domain              Your MeshCentral domain (e.g. rmm.example.com)"
+    echo "  --tailscale <ip>    Tailscale IP of this server for agent connections"
+    echo ""
+    echo "Without --tailscale, agents connect via the domain through the reverse proxy."
+    echo "With --tailscale, agents connect directly via the Tailscale IP (private network)."
     exit 1
 fi
 
 DOMAIN="$1"
+TAILSCALE_IP=""
+shift
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --tailscale) TAILSCALE_IP="$2"; shift 2 ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
+    esac
+done
 
 # ── detect current user ──────────────────────────────────────────────────────
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
 echo "Detected UID:GID = ${HOST_UID}:${HOST_GID}"
+
+if [[ -n "${TAILSCALE_IP}" ]]; then
+    echo "Tailscale agent mode: agents will connect via ${TAILSCALE_IP}"
+else
+    echo "Standard mode: agents connect via ${DOMAIN} through reverse proxy"
+fi
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 rand_hex()  { openssl rand -hex "$1"; }
@@ -49,8 +67,14 @@ MC_PORT=4430
 EOF
 chmod 600 .env
 
+# ── build agent config section ──────────────────────────────────────────────
+if [[ -n "${TAILSCALE_IP}" ]]; then
+    AGENT_CONFIG_LINE="\"agentConfig\": [\"${TAILSCALE_IP}\", \"${DOMAIN}\"],"
+else
+    AGENT_CONFIG_LINE=""
+fi
+
 # ── config.json (MeshCentral configuration) ─────────────────────────────────
-# Agents connect on port 443 (same as web UI) via reverse proxy.
 # MongoDB has no auth — secured via internal-only Docker network (no host ports).
 cat > data/meshcentral-data/config.json <<EOF
 {
@@ -59,6 +83,7 @@ cat > data/meshcentral-data/config.json <<EOF
     "cert": "${DOMAIN}",
     "port": 443,
     "redirPort": 80,
+    ${AGENT_CONFIG_LINE}
     "mongoDb": "mongodb://mongodb:27017/meshcentral",
     "mongoDbName": "meshcentral",
     "dbEncryptKey": "${DB_ENCRYPT_KEY}",
@@ -100,4 +125,11 @@ echo "  1. Point your reverse proxy to https://127.0.0.1:4430 (TLS, skip verify)
 echo "  2. docker compose up -d"
 echo "  3. Visit https://${DOMAIN} and create your admin account"
 echo "  4. Set \"newAccounts\": false in config.json after creating your account"
+if [[ -n "${TAILSCALE_IP}" ]]; then
+    echo ""
+    echo "Tailscale agent setup:"
+    echo "  - Agents will connect via ${TAILSCALE_IP} (Tailscale) or ${DOMAIN} (public)"
+    echo "  - Ensure your Tailscale ACLs allow managed machines to reach this server on tcp:443"
+    echo "  - No additional firewall ports needed for agent traffic"
+fi
 echo ""
