@@ -5,7 +5,11 @@
 ### 1. Generate Configuration
 
 ```bash
+# Standard — agents connect via domain through reverse proxy
 ./generate-config.sh <domain>
+
+# With Tailscale — agents connect via Tailscale IP (private network)
+./generate-config.sh <domain> --tailscale <tailscale-ip>
 ```
 
 The script auto-detects your UID/GID and generates all config files and secrets. The detected values are stored as `PUID`/`PGID` in `.env`.
@@ -150,6 +154,38 @@ MeshCentral supports OpenID Connect for single sign-on. To integrate with Authen
 The `"newAccounts": true` inside the `oidc` block auto-provisions SSO users on first login, while direct registration stays disabled (the main `"newAccounts": false` still applies).
 
 **4. Restart:** `docker compose restart meshcentral`
+
+### Tailscale Agent Connections
+
+When deployed with `--tailscale`, agents connect directly via the Tailscale IP instead of going through the public internet. This provides WireGuard encryption on top of MeshCentral's own TLS.
+
+**How it works:**
+- Web UI: `https://rmm.yourdomain.com` → Pangolin → Let's Encrypt cert
+- Agents: `https://100.x.x.x:443` → Tailscale tunnel → MeshCentral self-signed cert (pinned)
+
+Agents pin the server's certificate hash on first install, so the self-signed cert is not a problem.
+
+**Tailscale ACL setup:**
+
+Ensure your managed machines can reach the RMM server on tcp:443. Example ACL:
+```json
+{
+  "tagOwners": {
+    "tag:wn-rmm": ["autogroup:admin"]
+  },
+  "acls": [
+    {
+      "src": ["tag:wn-rmm", "autogroup:tagged"],
+      "dst": ["autogroup:tagged", "tag:wn-rmm"],
+      "ip":  ["tcp:443"]
+    }
+  ]
+}
+```
+
+Tag the MeshCentral server with `tag:wn-rmm`. Any tagged device in your tailnet can then reach it — no need to tag every managed machine individually.
+
+**Note:** The `agentConfig` field used for Tailscale multi-address support should be verified against the [MeshCentral config schema](https://github.com/Ylianst/MeshCentral/blob/master/meshcentral-config-schema.json) before deploying to production. Test with a single agent first.
 
 ### Intel AMT (optional)
 

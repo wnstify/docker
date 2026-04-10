@@ -7,18 +7,16 @@ Supports remote desktop, terminal, file transfer, and Intel AMT management acros
 ## Architecture
 
 ```
-Internet
-  |
-Pangolin (TLS termination)
-  |
-127.0.0.1:4430 (HTTPS)
-  |
-[mc-frontend] ── MeshCentral (Node.js, port 443)
-                       |
-                 [mc-internal] ── MongoDB 8.0 (DHI, port 27017)
+Browsers ── Internet ── Pangolin (TLS) ── 127.0.0.1:4430
+                                              |
+                                        [mc-frontend] ── MeshCentral (Node.js, port 443)
+                                              |               |
+Agents ── Tailscale (WireGuard) ──────────────┘         [mc-internal] ── MongoDB 8.0 (DHI)
 ```
 
-Agents and the web UI share port 443 — everything goes through Pangolin.
+**Standard mode**: Agents and web UI both go through Pangolin on port 443.
+
+**Tailscale mode**: Web UI goes through Pangolin, agents connect directly via Tailscale IP — private, encrypted, no public exposure for agent traffic.
 
 ### Services
 
@@ -36,15 +34,17 @@ Agents and the web UI share port 443 — everything goes through Pangolin.
 ## Quick Start
 
 ```bash
-# 1. Generate configuration
+# Standard — agents connect via domain through Pangolin
 ./generate-config.sh rmm.yourdomain.com
 
-# 2. Deploy
+# Or with Tailscale — agents connect via Tailscale IP directly
+./generate-config.sh rmm.yourdomain.com --tailscale 100.x.x.x
+
+# Deploy
 docker compose up -d
 
-# 3. Point Pangolin to https://127.0.0.1:4430 (skip TLS verify — self-signed internal cert)
-
-# 4. Visit https://rmm.yourdomain.com and create your admin account
+# Point Pangolin to https://127.0.0.1:4430 (skip TLS verify — self-signed internal cert)
+# Visit https://rmm.yourdomain.com and create your admin account
 # Then set "newAccounts": false in data/meshcentral-data/config.json
 ```
 
