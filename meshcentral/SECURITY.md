@@ -60,7 +60,7 @@ MongoDB is only reachable from MeshCentral via the internal network. No host por
 
 **Standard mode**: Agents and the web UI share port 443. Everything routes through the reverse proxy — no additional ports needed.
 
-**Tailscale mode**: Web UI routes through the reverse proxy. Agents connect via Tailscale IP directly — traffic is encrypted by WireGuard (Tailscale) and MeshCentral TLS (cert-pinned). Agent traffic never touches the public internet.
+**Tailscale mode**: Web UI routes through the reverse proxy. Agents connect via the Tailscale IP directly — double encrypted by WireGuard (Tailscale) and MeshCentral TLS (cert-pinned). MeshCentral certs are generated for the Tailscale IP, WANonly mode disables LAN discovery. Agent traffic never touches the public internet.
 
 ## Authentication
 
@@ -111,4 +111,4 @@ MeshCentral's healthcheck covers the full stack — if MongoDB is down, MeshCent
 
 3. **First account registration**: `newAccounts` is set to `true` in the generated config to allow initial admin registration. After creating your account, set `"newAccounts": false` in `data/meshcentral-data/config.json` and restart to lock down registration.
 
-4. **Tailscale agent connections**: When using `--tailscale`, agents connect via the Tailscale IP with double encryption (WireGuard + MeshCentral TLS with cert pinning). Ensure Tailscale ACLs restrict which devices can reach the RMM server on tcp:443. The `agentConfig` field should be verified against MeshCentral's config schema before large-scale deployment — test with a single agent first.
+4. **Tailscale agent connections**: When using `--tailscale`, MeshCentral's `cert` is set to the Tailscale IP and `WANonly` is enabled. Agents connect directly over the tailnet with double encryption (WireGuard + MeshCentral TLS with cert pinning). Ensure Tailscale ACLs restrict which devices can reach the RMM server on tcp:443. Agent install commands must be grabbed from the Tailscale IP URL, not the domain — the cert hash is different.

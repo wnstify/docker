@@ -16,7 +16,7 @@ Agents ── Tailscale (WireGuard) ──────────────�
 
 **Standard mode**: Agents and web UI both go through Pangolin on port 443.
 
-**Tailscale mode**: Web UI goes through Pangolin, agents connect directly via Tailscale IP — private, encrypted, no public exposure for agent traffic.
+**Tailscale mode**: Web UI goes through Pangolin, agents connect directly via Tailscale IP — private, WireGuard encrypted, no public exposure for agent traffic. MeshCentral certs are generated for the Tailscale IP with WANonly mode enabled.
 
 ### Services
 

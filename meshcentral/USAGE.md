@@ -157,13 +157,29 @@ The `"newAccounts": true` inside the `oidc` block auto-provisions SSO users on f
 
 ### Tailscale Agent Connections
 
-When deployed with `--tailscale`, agents connect directly via the Tailscale IP instead of going through the public internet. This provides WireGuard encryption on top of MeshCentral's own TLS.
+When deployed with `--tailscale`, agents connect directly via the Tailscale IP instead of going through the public internet. The web UI still goes through Pangolin.
 
-**How it works:**
-- Web UI: `https://rmm.yourdomain.com` → Pangolin → Let's Encrypt cert
-- Agents: `https://100.x.x.x:443` → Tailscale tunnel → MeshCentral self-signed cert (pinned)
+**What the script does with `--tailscale`:**
+- Sets `cert` to the Tailscale IP (certs generated for this address, agents pin the hash)
+- Enables `WANonly: true` (disables LAN broadcast discovery — doesn't work over Tailscale)
+- Removes `certUrl` (agents go direct, not through a reverse proxy)
 
-Agents pin the server's certificate hash on first install, so the self-signed cert is not a problem.
+**How traffic flows:**
+- Web UI: `https://rmm.yourdomain.com` → Pangolin → Let's Encrypt cert → MeshCentral
+- Agents: `https://100.x.x.x:443` → Tailscale (WireGuard) → MeshCentral self-signed cert (pinned)
+
+**Docker Compose port binding:**
+
+The compose file binds port 443 to the Tailscale IP so agents can reach it directly:
+```yaml
+ports:
+  - "127.0.0.1:4430:443"         # Pangolin (web UI)
+  - "${TAILSCALE_IP}:443:443"    # Tailscale (agents)
+```
+
+**Agent installation:**
+
+Grab the install command from the MeshCentral UI at `https://100.x.x.x` (the Tailscale IP), not the domain. The install script embeds the cert hash for the Tailscale IP.
 
 **Tailscale ACL setup:**
 
@@ -183,9 +199,7 @@ Ensure your managed machines can reach the RMM server on tcp:443. Example ACL:
 }
 ```
 
-Tag the MeshCentral server with `tag:wn-rmm`. Any tagged device in your tailnet can then reach it — no need to tag every managed machine individually.
-
-**Note:** The `agentConfig` field used for Tailscale multi-address support should be verified against the [MeshCentral config schema](https://github.com/Ylianst/MeshCentral/blob/master/meshcentral-config-schema.json) before deploying to production. Test with a single agent first.
+Tag the MeshCentral server with `tag:wn-rmm`. Any tagged device in your tailnet can reach it — no need to tag every managed machine individually.
 
 ### Intel AMT (optional)
 

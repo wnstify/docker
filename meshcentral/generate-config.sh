@@ -13,8 +13,13 @@ if [[ $# -lt 1 ]]; then
     echo "  domain              Your MeshCentral domain (e.g. rmm.example.com)"
     echo "  --tailscale <ip>    Tailscale IP of this server for agent connections"
     echo ""
-    echo "Without --tailscale, agents connect via the domain through the reverse proxy."
-    echo "With --tailscale, agents connect directly via the Tailscale IP (private network)."
+    echo "Without --tailscale:"
+    echo "  Agents connect via the domain through the reverse proxy."
+    echo ""
+    echo "With --tailscale:"
+    echo "  Web UI goes through Pangolin at the domain."
+    echo "  Agents connect directly via Tailscale IP (private WireGuard network)."
+    echo "  Certs are generated for the Tailscale IP. WANonly mode enabled."
     exit 1
 fi
 
@@ -34,9 +39,9 @@ HOST_GID="$(id -g)"
 echo "Detected UID:GID = ${HOST_UID}:${HOST_GID}"
 
 if [[ -n "${TAILSCALE_IP}" ]]; then
-    echo "Tailscale agent mode: agents will connect via ${TAILSCALE_IP}"
+    echo "Tailscale mode: web UI via ${DOMAIN}, agents via ${TAILSCALE_IP}"
 else
-    echo "Standard mode: agents connect via ${DOMAIN} through reverse proxy"
+    echo "Standard mode: agents and web UI via ${DOMAIN} through reverse proxy"
 fi
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -64,26 +69,61 @@ cat > .env <<EOF
 PUID=${HOST_UID}
 PGID=${HOST_GID}
 MC_PORT=4430
+TAILSCALE_IP=${TAILSCALE_IP:-127.0.0.1}
 EOF
 chmod 600 .env
 
-# ── build agent config section ──────────────────────────────────────────────
-if [[ -n "${TAILSCALE_IP}" ]]; then
-    AGENT_CONFIG_LINE="\"agentConfig\": [\"${TAILSCALE_IP}\", \"${DOMAIN}\"],"
-else
-    AGENT_CONFIG_LINE=""
-fi
-
 # ── config.json (MeshCentral configuration) ─────────────────────────────────
 # MongoDB has no auth — secured via internal-only Docker network (no host ports).
-cat > data/meshcentral-data/config.json <<EOF
+if [[ -n "${TAILSCALE_IP}" ]]; then
+    # Tailscale mode:
+    #   cert = Tailscale IP (agents connect here, certs generated for this)
+    #   WANonly = true (no LAN broadcast discovery over Tailscale)
+    #   No certUrl (agents go direct, not through reverse proxy)
+    cat > data/meshcentral-data/config.json <<EOF
+{
+  "\$schema": "https://raw.githubusercontent.com/Ylianst/MeshCentral/master/meshcentral-config-schema.json",
+  "settings": {
+    "cert": "${TAILSCALE_IP}",
+    "port": 443,
+    "redirPort": 80,
+    "WANonly": true,
+    "mongoDb": "mongodb://mongodb:27017/meshcentral",
+    "mongoDbName": "meshcentral",
+    "dbEncryptKey": "${DB_ENCRYPT_KEY}",
+    "sessionKey": "${SESSION_KEY}",
+    "compression": true,
+    "wsCompression": true,
+    "agentCoreDump": false,
+    "exactPorts": true,
+    "allowHighQualityDesktop": true,
+    "autoBackup": {
+      "backupIntervalHours": 24,
+      "keepLastDaysBackup": 7
+    }
+  },
+  "domains": {
+    "": {
+      "title": "MeshCentral",
+      "title2": "Remote Management",
+      "newAccounts": true,
+      "minify": true,
+      "localSessionRecording": true
+    }
+  }
+}
+EOF
+else
+    # Standard mode:
+    #   cert = domain (agents and web UI connect here)
+    #   certUrl = domain (reverse proxy cert validation)
+    cat > data/meshcentral-data/config.json <<EOF
 {
   "\$schema": "https://raw.githubusercontent.com/Ylianst/MeshCentral/master/meshcentral-config-schema.json",
   "settings": {
     "cert": "${DOMAIN}",
     "port": 443,
     "redirPort": 80,
-    ${AGENT_CONFIG_LINE}
     "mongoDb": "mongodb://mongodb:27017/meshcentral",
     "mongoDbName": "meshcentral",
     "dbEncryptKey": "${DB_ENCRYPT_KEY}",
@@ -110,6 +150,7 @@ cat > data/meshcentral-data/config.json <<EOF
   }
 }
 EOF
+fi
 
 # ── done ─────────────────────────────────────────────────────────────────────
 echo ""
@@ -123,13 +164,19 @@ echo ""
 echo "Next steps:"
 echo "  1. Point your reverse proxy to https://127.0.0.1:4430 (TLS, skip verify)"
 echo "  2. docker compose up -d"
-echo "  3. Visit https://${DOMAIN} and create your admin account"
+if [[ -n "${TAILSCALE_IP}" ]]; then
+    echo "  3. Visit https://${TAILSCALE_IP} or https://${DOMAIN} and create your admin account"
+else
+    echo "  3. Visit https://${DOMAIN} and create your admin account"
+fi
 echo "  4. Set \"newAccounts\": false in config.json after creating your account"
 if [[ -n "${TAILSCALE_IP}" ]]; then
     echo ""
-    echo "Tailscale agent setup:"
-    echo "  - Agents will connect via ${TAILSCALE_IP} (Tailscale) or ${DOMAIN} (public)"
-    echo "  - Ensure your Tailscale ACLs allow managed machines to reach this server on tcp:443"
-    echo "  - No additional firewall ports needed for agent traffic"
+    echo "Tailscale setup:"
+    echo "  - Web UI: https://${DOMAIN} (through Pangolin)"
+    echo "  - Agents: connect directly via https://${TAILSCALE_IP} (Tailscale)"
+    echo "  - Certs are generated for ${TAILSCALE_IP} (agents pin the cert hash)"
+    echo "  - WANonly mode enabled (no LAN broadcast over Tailscale)"
+    echo "  - Ensure Tailscale ACLs allow managed machines to reach this server on tcp:443"
 fi
 echo ""

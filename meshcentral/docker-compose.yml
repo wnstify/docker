@@ -19,6 +19,7 @@ services:
     # Image manages its own user; needs write to /opt/meshcentral for runtime modules
     ports:
       - "127.0.0.1:${MC_PORT:-4430}:443"
+      - "${TAILSCALE_IP:-127.0.0.1}:443:443"
     environment:
       - NODE_ENV=production
       - DYNAMIC_CONFIG=false
