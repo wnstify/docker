@@ -5,7 +5,7 @@
 ### 1. Generate Configuration
 
 ```bash
-./generate-config.sh <domain> [--agent-port <port>]
+./generate-config.sh <domain>
 ```
 
 The script auto-detects your UID/GID and generates all config files and secrets. The detected values are stored as `PUID`/`PGID` in `.env`.
@@ -58,11 +58,7 @@ location / {
 
 WebSocket headers (`Upgrade`, `Connection`) are required for remote desktop/terminal sessions.
 
-### 4. Firewall
-
-Open port `8800/tcp` (or your custom agent port) for agent connections.
-
-### 5. First Login
+### 4. First Login
 
 1. Visit `https://rmm.yourdomain.com`
 2. Create your admin account
@@ -195,4 +191,4 @@ docker compose up -d
 3. Click "Add Agent" — download the agent installer for your OS
 4. Deploy to target machines
 
-Agents connect back to your server on port 8800 (TLS encrypted).
+Agents connect back to your server on port 443 through the reverse proxy (same as web UI).

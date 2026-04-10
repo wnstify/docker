@@ -14,11 +14,11 @@ Pangolin (TLS termination)
 127.0.0.1:4430 (HTTPS)
   |
 [mc-frontend] ── MeshCentral (Node.js, port 443)
-  |                    |
-  |              [mc-internal] ── MongoDB 8.0 (DHI, port 27017)
-  |
-0.0.0.0:8800 (agent connections)
+                       |
+                 [mc-internal] ── MongoDB 8.0 (DHI, port 27017)
 ```
+
+Agents and the web UI share port 443 — everything goes through Pangolin.
 
 ### Services
 
@@ -31,8 +31,7 @@ Pangolin (TLS termination)
 
 | Port | Binding | Purpose |
 |------|---------|---------|
-| 4430/tcp | `127.0.0.1` | HTTPS web UI (reverse proxy target) |
-| 8800/tcp | `0.0.0.0` | Agent connections (must be public) |
+| 4430/tcp | `127.0.0.1` | HTTPS web UI + agent connections (reverse proxy target) |
 
 ## Quick Start
 
@@ -43,11 +42,9 @@ Pangolin (TLS termination)
 # 2. Deploy
 docker compose up -d
 
-# 3. Configure reverse proxy
-# Point Pangolin to https://127.0.0.1:4430 (skip TLS verify — self-signed internal cert)
+# 3. Point Pangolin to https://127.0.0.1:4430 (skip TLS verify — self-signed internal cert)
 
-# 4. Create admin account
-# Visit https://rmm.yourdomain.com and register
+# 4. Visit https://rmm.yourdomain.com and create your admin account
 # Then set "newAccounts": false in data/meshcentral-data/config.json
 ```
 

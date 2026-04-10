@@ -56,10 +56,9 @@ MongoDB is only reachable from MeshCentral via the internal network. No host por
 
 | Port | Binding | Service | Purpose |
 |------|---------|---------|---------|
-| 4430/tcp | `127.0.0.1` | MeshCentral | HTTPS web UI (reverse proxy only) |
-| 8800/tcp | `0.0.0.0` | MeshCentral | Agent connections (must be public) |
+| 4430/tcp | `127.0.0.1` | MeshCentral | HTTPS web UI + agent connections (reverse proxy only) |
 
-The agent port must be publicly accessible for managed devices to connect. All web traffic routes through the reverse proxy.
+Agents and the web UI share port 443. Everything routes through the reverse proxy — no additional ports needed.
 
 ## Authentication
 
@@ -104,10 +103,8 @@ MeshCentral's healthcheck covers the full stack — if MongoDB is down, MeshCent
 
 ## Known Security Considerations
 
-1. **Agent port exposure**: Port 8800/tcp must be publicly accessible for agents to connect. This is inherent to how RMM works.
+1. **Self-signed internal TLS**: MeshCentral uses self-signed certificates internally. The reverse proxy must skip TLS verification to the backend (`tls_insecure_skip_verify`). Public-facing TLS is handled by the reverse proxy with valid certificates.
 
-2. **Self-signed internal TLS**: MeshCentral uses self-signed certificates internally. The reverse proxy must skip TLS verification to the backend (`tls_insecure_skip_verify`). Public-facing TLS is handled by the reverse proxy with valid certificates.
+2. **MongoDB healthcheck disabled**: The DHI runtime image has no shell. The MeshCentral healthcheck covers full stack health — if MongoDB is unreachable, MeshCentral will report unhealthy.
 
-3. **MongoDB healthcheck disabled**: The DHI runtime image has no shell. The MeshCentral healthcheck covers full stack health — if MongoDB is unreachable, MeshCentral will report unhealthy.
-
-4. **First account registration**: `newAccounts` is set to `true` in the generated config to allow initial admin registration. After creating your account, set `"newAccounts": false` in `data/meshcentral-data/config.json` and restart to lock down registration.
+3. **First account registration**: `newAccounts` is set to `true` in the generated config to allow initial admin registration. After creating your account, set `"newAccounts": false` in `data/meshcentral-data/config.json` and restart to lock down registration.
