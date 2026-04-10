@@ -52,6 +52,7 @@ Production-ready Docker Compose templates for self-hosting open-source applicati
 | [NGINX Proxy Manager](./npm) | Reverse proxy with SSL management UI | [README](./npm/README.md) |
 | [Watchtower](./watchtower) | Automatic Docker container updates | [README](./watchtower/README.md) |
 | [Uptime Kuma](./uptime-kuma) | Self-hosted monitoring and status pages | [README](./uptime-kuma/README.md) |
+| [MeshCentral](./meshcentral) | Remote monitoring & management (RMM) with DHI MongoDB | [README](./meshcentral/README.md) |
 | [WireGuard VPN Stack](./wg-setup) | WireGuard + Pi-hole + Unbound with Quad9 DNS-over-TLS | [README](./wg-setup/README.md) |
 
 ### Identity & Security
@@ -162,6 +163,13 @@ docker/
 ├── jellyfin/
 │   ├── docker-compose.yml
 │   └── README.md
+│
+├── meshcentral/
+│   ├── docker-compose.yml
+│   ├── generate-config.sh
+│   ├── README.md
+│   ├── USAGE.md
+│   └── SECURITY.md
 │
 ├── n8n/
 │   ├── docker-compose.yml
