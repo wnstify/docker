@@ -1,6 +1,6 @@
 services:
   watchtower:
-    image: containrrr/watchtower:latest
+    image: ghcr.io/nicholas-fedor/watchtower:1.16.1
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

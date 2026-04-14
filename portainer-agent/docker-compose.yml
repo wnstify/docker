@@ -1,7 +1,7 @@
 services:
   portainer-agent:
     container_name: portainer-agent
-    image: portainer/agent:latest
+    image: portainer/agent:2.39.1
     ports:
       - "9001:9001"
     volumes:

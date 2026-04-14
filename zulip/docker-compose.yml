@@ -47,7 +47,7 @@ services:
     ports:
       - "127.0.0.1:11211:11211"
   rabbitmq:
-    image: "rabbitmq:4.1"
+    image: "rabbitmq:4.2.5"
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: "zulip"
@@ -86,14 +86,14 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
   zulip:
-    image: "zulip/docker-zulip:11.4-0"
+    image: "zulip/docker-zulip:11.6-0"
     restart: unless-stopped
     build:
       context: .
       args:
         ## Change these if you want to build zulip from a different repo/branch
         ZULIP_GIT_URL: https://github.com/zulip/zulip.git
-        ZULIP_GIT_REF: "11.4"
+        ZULIP_GIT_REF: "11.6"
         ## Set this up if you plan to use your own CA certificate bundle for building
         # CUSTOM_CA_CERTIFICATES:
     ports:

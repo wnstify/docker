@@ -5,14 +5,15 @@
 </p>
 
 <p align="center">
-  <a href="https://containrrr.dev/watchtower/">Website</a> •
-  <a href="https://containrrr.dev/watchtower/">Documentation</a> •
-  <a href="https://github.com/containrrr/watchtower">GitHub</a>
+  <a href="https://github.com/nicholas-fedor/watchtower">GitHub</a> •
+  <a href="https://github.com/nicholas-fedor/watchtower/pkgs/container/watchtower">Packages</a>
 </p>
 
 ---
 
-[Watchtower](https://github.com/containrrr/watchtower) automatically updates your running Docker containers when new images are available. Set it and forget it — your containers stay up to date.
+[Watchtower](https://github.com/nicholas-fedor/watchtower) automatically updates your running Docker containers when new images are available. Set it and forget it — your containers stay up to date.
+
+> **Note:** This template uses the [community-maintained fork](https://github.com/nicholas-fedor/watchtower) by Nicholas Fedor, as the [original project](https://github.com/containrrr/watchtower) has been archived.
 
 ## Features
 
@@ -156,10 +157,9 @@ docker logs watchtower
 
 ## Support the Project
 
-- ⭐ [Star on GitHub](https://github.com/containrrr/watchtower)
-- 📖 [Documentation](https://containrrr.dev/watchtower/)
-- 🐛 [Report Issues](https://github.com/containrrr/watchtower/issues)
+- ⭐ [Star on GitHub](https://github.com/nicholas-fedor/watchtower)
+- 🐛 [Report Issues](https://github.com/nicholas-fedor/watchtower/issues)
 
 ## License
 
-Watchtower is released under the [Apache-2.0 License](https://github.com/containrrr/watchtower/blob/main/LICENSE.md).
+Watchtower is released under the [Apache-2.0 License](https://github.com/nicholas-fedor/watchtower/blob/main/LICENSE.md).

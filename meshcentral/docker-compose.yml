@@ -14,7 +14,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
 
   meshcentral:
-    image: ghcr.io/ylianst/meshcentral:latest-mongodb
+    image: ghcr.io/ylianst/meshcentral:1.1.58-mongodb
     restart: unless-stopped
     # Image manages its own user; needs write to /opt/meshcentral for runtime modules
     ports:

@@ -38,7 +38,7 @@ x-stoat-config-volume: &stoat-config
 services:
 
   database:
-    image: docker.io/mongo:7
+    image: docker.io/mongo:8
     restart: unless-stopped
     user: "${PUID}:${PGID}"
     environment:
@@ -107,7 +107,7 @@ services:
       start_period: 10s
 
   rabbit:
-    image: docker.io/rabbitmq:4-alpine
+    image: docker.io/rabbitmq:4.2.5-alpine
     restart: unless-stopped
     user: "${PUID}:${PGID}"
     environment:
@@ -176,7 +176,7 @@ services:
 # =============================================================================
 
   api:
-    image: ghcr.io/stoatchat/api:v0.12.0
+    image: ghcr.io/stoatchat/api:v0.12.1
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -205,7 +205,7 @@ services:
           cpus: "0.25"
 
   events:
-    image: ghcr.io/stoatchat/events:v0.12.0
+    image: ghcr.io/stoatchat/events:v0.12.1
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -231,7 +231,7 @@ services:
           cpus: "0.25"
 
   autumn:
-    image: ghcr.io/stoatchat/file-server:v0.12.0
+    image: ghcr.io/stoatchat/file-server:v0.12.1
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -256,7 +256,7 @@ services:
           cpus: "0.25"
 
   january:
-    image: ghcr.io/stoatchat/proxy:v0.12.0
+    image: ghcr.io/stoatchat/proxy:v0.12.1
     restart: unless-stopped
     env_file: secrets.env
     volumes:
@@ -276,7 +276,7 @@ services:
           cpus: "0.1"
 
   gifbox:
-    image: ghcr.io/stoatchat/gifbox:v0.12.0
+    image: ghcr.io/stoatchat/gifbox:v0.12.1
     restart: unless-stopped
     env_file: secrets.env
     volumes:
@@ -296,7 +296,7 @@ services:
           cpus: "0.05"
 
   crond:
-    image: ghcr.io/stoatchat/crond:v0.12.0
+    image: ghcr.io/stoatchat/crond:v0.12.1
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -321,7 +321,7 @@ services:
           cpus: "0.1"
 
   pushd:
-    image: ghcr.io/stoatchat/pushd:v0.12.0
+    image: ghcr.io/stoatchat/pushd:v0.12.1
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -349,7 +349,7 @@ services:
           cpus: "0.1"
 
   voice-ingress:
-    image: ghcr.io/stoatchat/voice-ingress:v0.12.0
+    image: ghcr.io/stoatchat/voice-ingress:v0.12.1
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -415,7 +415,7 @@ services:
           cpus: "0.25"
 
   web:
-    image: ghcr.io/stoatchat/for-web:103d2bf
+    image: ghcr.io/stoatchat/for-web:0b94704
     restart: unless-stopped
     env_file: .env.web
     networks:
@@ -437,7 +437,7 @@ services:
 # =============================================================================
 
   caddy:
-    image: docker.io/caddy:latest
+    image: docker.io/caddy:2.11.2
     restart: unless-stopped
     # caddy binary has file capabilities — must run as root with cap_drop ALL
     env_file: .env.web

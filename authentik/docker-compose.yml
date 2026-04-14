@@ -1,6 +1,6 @@
 services:
   postgresql:
-    image: docker.io/library/postgres:16-alpine
+    image: docker.io/library/postgres:17-alpine
     restart: unless-stopped
     user: "1000:1000"
     healthcheck:
@@ -39,7 +39,7 @@ services:
     networks:
       - your-network # Change Value
   server:
-    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2025.8.1}
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2.2}
     restart: unless-stopped
     command: server
     environment:
@@ -66,7 +66,7 @@ services:
     networks:
       - your-network # Change Value
   worker:
-    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2025.8.1}
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2.2}
     restart: unless-stopped
     command: worker
     environment:

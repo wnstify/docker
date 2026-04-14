@@ -22,7 +22,7 @@ Agents ── Tailscale (WireGuard) ──────────────�
 
 | Service | Image | Purpose |
 |---------|-------|---------|
-| **meshcentral** | `ghcr.io/ylianst/meshcentral:latest-mongodb` | RMM web server + agent hub |
+| **meshcentral** | `ghcr.io/ylianst/meshcentral:1.1.58-mongodb` | RMM web server + agent hub |
 | **mongodb** | `dhi.io/mongodb:8.0-debian13` | Database (Docker Hardened Image, zero CVEs) |
 
 ### Ports

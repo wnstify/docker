@@ -1,6 +1,6 @@
 services:
   serpbear-app:
-    image: towfiqi/serpbear
+    image: towfiqi/serpbear:3.0.0
     container_name: serpbear
     restart: unless-stopped
     ports:

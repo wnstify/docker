@@ -30,7 +30,7 @@ services:
       - no-new-privileges:true
 
   docuseal-postgres:
-    image: postgres:16
+    image: postgres:17
     restart: unless-stopped
     environment:
       - POSTGRES_USER
@@ -57,7 +57,7 @@ services:
 
   docuseal-gotenberg:
     restart: unless-stopped
-    image: gotenberg/gotenberg:latest
+    image: gotenberg/gotenberg:8.30.0
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:

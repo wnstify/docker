@@ -28,20 +28,20 @@ Pangolin (TLS termination + SSO)
 
 | Service | Image | Purpose |
 |---------|-------|---------|
-| **api** | `ghcr.io/stoatchat/api:v0.12.0` | REST API (Rust) |
-| **events** | `ghcr.io/stoatchat/events:v0.12.0` | WebSocket real-time messaging |
-| **autumn** | `ghcr.io/stoatchat/file-server:v0.12.0` | File upload/download |
-| **january** | `ghcr.io/stoatchat/proxy:v0.12.0` | Link preview & image proxy |
-| **gifbox** | `ghcr.io/stoatchat/gifbox:v0.12.0` | Tenor GIF proxy |
-| **crond** | `ghcr.io/stoatchat/crond:v0.12.0` | Scheduled cleanup tasks |
-| **pushd** | `ghcr.io/stoatchat/pushd:v0.12.0` | Web push notifications |
-| **voice-ingress** | `ghcr.io/stoatchat/voice-ingress:v0.12.0` | Voice channel routing |
+| **api** | `ghcr.io/stoatchat/api:v0.12.1` | REST API (Rust) |
+| **events** | `ghcr.io/stoatchat/events:v0.12.1` | WebSocket real-time messaging |
+| **autumn** | `ghcr.io/stoatchat/file-server:v0.12.1` | File upload/download |
+| **january** | `ghcr.io/stoatchat/proxy:v0.12.1` | Link preview & image proxy |
+| **gifbox** | `ghcr.io/stoatchat/gifbox:v0.12.1` | Tenor GIF proxy |
+| **crond** | `ghcr.io/stoatchat/crond:v0.12.1` | Scheduled cleanup tasks |
+| **pushd** | `ghcr.io/stoatchat/pushd:v0.12.1` | Web push notifications |
+| **voice-ingress** | `ghcr.io/stoatchat/voice-ingress:v0.12.1` | Voice channel routing |
 | **livekit** | `ghcr.io/stoatchat/livekit-server:v1.9.13` | Voice/video WebRTC server |
-| **web** | `ghcr.io/stoatchat/for-web:103d2bf` | Solid.js web frontend |
-| **caddy** | `caddy:latest` | Internal path-based reverse proxy |
-| **database** | `mongo:7` | Primary database |
+| **web** | `ghcr.io/stoatchat/for-web:0b94704` | Solid.js web frontend |
+| **caddy** | `caddy:2.11.2` | Internal path-based reverse proxy |
+| **database** | `mongo:8` | Primary database |
 | **redis** | `redis:8-alpine` | Cache & pub/sub |
-| **rabbit** | `rabbitmq:4-alpine` | Internal message broker |
+| **rabbit** | `rabbitmq:4.2.5-alpine` | Internal message broker |
 | **garage** | `dxflrs/garage:v2.2.0` | S3-compatible object storage |
 
 ### Infrastructure Requirements

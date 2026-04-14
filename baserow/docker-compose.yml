@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres:17
     container_name: baserow_postgres
     restart: always
     environment:
@@ -27,7 +27,7 @@ services:
       - your-network # Change Value
   baserow:
     container_name: baserow
-    image: baserow/baserow:latest
+    image: baserow/baserow:2.1.6
     restart: always
     ports:
       - "127.0.0.1:89:80"
