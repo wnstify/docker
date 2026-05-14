@@ -19,7 +19,7 @@ This deployment follows strict container hardening standards for production self
 
 Services with `read_only: true` (immutable root filesystem):
 
-- api, events, january, gifbox, crond, pushd, voice-ingress, livekit, caddy, redis
+- api, events, january, gifbox, crond, pushd, voice-ingress, livekit, caddy, redis, mongo-init
 
 Services that require writable filesystems:
 
@@ -37,11 +37,13 @@ All containers run as non-root:
 
 | Service | User | How |
 |---------|------|-----|
-| database, redis, rabbit, garage, livekit | `${PUID}:${PGID}` | Auto-detected from the host user running `generate-config.sh` |
+| database, redis, garage, livekit | `${PUID}:${PGID}` | Auto-detected from the host user running `generate-config.sh` |
+| rabbit | `100:101` | In-image `rabbitmq` user — alpine init fails silently if forced to another UID; `data/rabbit` is pre-chowned by `generate-config.sh` |
 | api, events, autumn, january, gifbox, crond, pushd, voice-ingress | `nonroot` (UID 65532) | Built into the Stoat container images |
 | web | root | Upstream image requires write access for `inject.js` |
 | caddy | root | Binary has file capabilities requiring root |
 | garage-init | root | One-shot init container, needs `apk add` |
+| mongo-init | `${PUID}:${PGID}` | One-shot init container — runs `mongosh` to pre-create cleanup-target collections after api migration completes |
 
 Data directories are pre-owned as `${PUID}:${PGID}` by `generate-config.sh`, eliminating the need for `CHOWN`/`SETUID`/`SETGID` capabilities on infrastructure containers.
 
@@ -160,7 +162,7 @@ Every container has CPU, memory, and PID limits to prevent resource exhaustion:
 |---------|-------------|-----------|-----------|
 | database | 2 GB | 1.5 | 200 |
 | redis | 512 MB | 0.5 | 100 |
-| rabbit | 512 MB | 0.5 | 150 |
+| rabbit | 1 GB | 0.5 | 150 |
 | garage | 1 GB | 1.0 | 200 |
 | api | 1 GB | 1.0 | 200 |
 | events | 1 GB | 1.0 | 200 |
@@ -173,6 +175,8 @@ Every container has CPU, memory, and PID limits to prevent resource exhaustion:
 | livekit | 1 GB | 1.0 | 200 |
 | web | 256 MB | 0.25 | 50 |
 | caddy | 128 MB | 0.25 | 50 |
+| mongo-init | 256 MB | 0.25 | 50 |
+| garage-init | 128 MB | 0.25 | 50 |
 
 ## Healthchecks
 
@@ -182,7 +186,7 @@ Infrastructure services have active healthchecks:
 |---------|-------|----------|
 | database | `mongosh ping` | 10s |
 | redis | `redis-cli ping` | 10s |
-| rabbit | `rabbitmq-diagnostics ping` | 10s |
+| rabbit | `rabbitmq-diagnostics check_port_connectivity` | 15s |
 | caddy | `wget` on port 80 | 30s |
 
 Garage healthcheck is disabled (scratch image, no shell). The `garage-init` container handles readiness verification via the admin API before dependent services start.
@@ -196,3 +200,5 @@ Garage healthcheck is disabled (scratch image, no shell). The `garage-init` cont
 3. **Web and Caddy run as root**: The web frontend needs filesystem writes for `inject.js`. Caddy's binary has file capabilities that require root. Both are locked down with `cap_drop: ALL` (Caddy gets only `NET_BIND_SERVICE`).
 
 4. **garage-init runs as root**: One-shot init container that needs `apk add` for curl/jq. Exits immediately after configuring Garage S3.
+
+5. **mongo-init waits for api migration before acting**: One-shot init container that pre-creates `attachments` and `server_members` collections (which Stoat's `crond` cleanup tasks query, but which are otherwise only lazily created on first user upload / first server join). Polls the `migrations` collection — created by api's `admin_migrations` step — and only proceeds once api has finished initial schema setup, preventing api's "Database was configured incorrectly" panic. Exits immediately afterwards.

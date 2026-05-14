@@ -6,7 +6,7 @@ This setup follows strict container hardening standards: `cap_drop: ALL`, `no-ne
 
 ## Architecture
 
-15 containers across 5 isolated Docker networks:
+15 long-running containers + 2 one-shot init containers, across 5 isolated Docker networks:
 
 ```
 Internet
@@ -38,19 +38,36 @@ Pangolin (TLS termination + SSO)
 | **voice-ingress** | `ghcr.io/stoatchat/voice-ingress:v0.12.1` | Voice channel routing |
 | **livekit** | `ghcr.io/stoatchat/livekit-server:v1.9.13` | Voice/video WebRTC server |
 | **web** | `ghcr.io/stoatchat/for-web:0b94704` | Solid.js web frontend |
-| **caddy** | `caddy:2.11.2` | Internal path-based reverse proxy |
-| **database** | `mongo:8` | Primary database |
-| **redis** | `redis:8-alpine` | Cache & pub/sub |
+| **caddy** | `caddy:2.11.3` | Internal path-based reverse proxy |
+| **database** | `mongo:8.3.2` | Primary database |
+| **redis** | `redis:8.6.3-alpine` | Cache & pub/sub |
 | **rabbit** | `rabbitmq:4.2.5-alpine` | Internal message broker |
-| **garage** | `dxflrs/garage:v2.2.0` | S3-compatible object storage |
+| **garage** | `dxflrs/garage:v2.3.0` | S3-compatible object storage |
 
 ### Infrastructure Requirements
 
-- 2 vCPU / 4 GB RAM minimum
+**Software**
 - Docker + Docker Compose
 - Reverse proxy with TLS (Pangolin, Caddy, nginx, etc.)
 - `openssl` for secret generation
 - A domain name
+- Public UDP `50000–50100` + TCP `7881` reachable for LiveKit voice/video media
+
+**Server sizing**
+
+| Use case | Spec | Hetzner Cloud equivalent | Monthly (May 2026) |
+|----------|------|--------------------------|--------------------|
+| Demo / 1-user testing | 2 vCPU, 4 GB RAM, 40 GB NVMe | CX23 | €3.99 |
+| **Recommended — small community (<50 users)** | **4 vCPU, 8 GB RAM, 80 GB NVMe** | **CX33** | **€6.49** |
+| Active community (50–200, regular voice/video) | 8 vCPU, 16 GB RAM, 160+ GB NVMe | CX43 *or* CPX42 (320 GB disk) | €11.99 / €25.49 |
+| Production (persistent voice load, no noisy-neighbor) | 4–8 dedicated vCPU, 16–32 GB RAM | CCX23 / CCX33 | €31.49 / €62.49 |
+
+Hetzner prices are May 2026 Germany/Finland, ex-VAT, with 20 TB egress included. The vCPU/RAM column applies to any provider.
+
+**Notes**
+- **Disk grows with uploads.** Garage stores every uploaded file. CPX tiers ship double the disk vs equivalent CX tiers, or attach a Hetzner Volume (~€0.044/GB/mo NVMe).
+- **Avoid Arm (Hetzner CAX) unless verified.** The Stoat Rust services (`api`, `events`, `autumn`, `pushd`, `voice-ingress`, `crond`, `livekit-server`) may be published as amd64-only. Run `docker manifest inspect ghcr.io/stoatchat/api:v0.12.1` before committing to Arm.
+- See [SECURITY.md → Resource Limits](SECURITY.md#resource-limits) for the per-container memory/CPU/PID caps that sum to these recommendations.
 
 ## Quick Start
 
@@ -76,7 +93,7 @@ See [SECURITY.md](SECURITY.md) for the full security model.
 
 ```
 stoat/
-  docker-compose.yml      # Hardened Docker Compose (15 services)
+  docker-compose.yml      # Hardened Docker Compose (15 services + 2 init)
   Caddyfile               # Internal path router
   generate-config.sh      # One-command config + secret generator
   init-scripts/

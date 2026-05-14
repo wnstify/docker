@@ -38,7 +38,7 @@ x-stoat-config-volume: &stoat-config
 services:
 
   database:
-    image: docker.io/mongo:8
+    image: docker.io/mongo:8.3.2
     restart: unless-stopped
     user: "${PUID}:${PGID}"
     environment:
@@ -73,7 +73,7 @@ services:
       start_period: 20s
 
   redis:
-    image: docker.io/redis:8-alpine
+    image: docker.io/redis:8.6.3-alpine
     restart: unless-stopped
     user: "${PUID}:${PGID}"
     command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1 --loglevel warning
@@ -109,10 +109,12 @@ services:
   rabbit:
     image: docker.io/rabbitmq:4.2.5-alpine
     restart: unless-stopped
-    user: "${PUID}:${PGID}"
+    user: "100:101"  # rabbitmq user inside image; data dir pre-chowned to match
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD}
+      # Memory detection misfires on this host — set explicit watermarks
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit vm_memory_high_watermark_paging_ratio 0.9 -rabbit vm_memory_high_watermark {absolute,\"900MiB\"}"
     volumes:
       - ./data/rabbit:/var/lib/rabbitmq
     networks:
@@ -127,22 +129,22 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 1g
           cpus: "0.5"
           pids: 150
         reservations:
           memory: 128m
           cpus: "0.1"
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 15s
+      timeout: 30s
+      retries: 5
+      start_period: 90s
 
   # Garage: S3-compatible object storage (replaces MinIO)
   garage:
-    image: docker.io/dxflrs/garage:v2.2.0
+    image: docker.io/dxflrs/garage:v2.3.0
     restart: unless-stopped
     user: "${PUID}:${PGID}"
     volumes:
@@ -304,6 +306,8 @@ services:
         condition: service_healthy
       garage-init:
         condition: service_completed_successfully
+      mongo-init:
+        condition: service_completed_successfully
     volumes:
       - <<: *stoat-config
     networks:
@@ -437,7 +441,7 @@ services:
 # =============================================================================
 
   caddy:
-    image: docker.io/caddy:2.11.2
+    image: docker.io/caddy:2.11.3
     restart: unless-stopped
     # caddy binary has file capabilities — must run as root with cap_drop ALL
     env_file: .env.web
@@ -486,9 +490,70 @@ services:
 # INIT CONTAINERS
 # =============================================================================
 
+  # MongoDB bootstrap: pre-creates collections that Stoat's crond cleanup tasks
+  # query on fresh deploys (attachments file-prune, server_members dangling-prune).
+  # Without this, crond restart-loops harmlessly until first user activity creates
+  # the collections.
+  #
+  # Must run AFTER api completes its admin_migrations: api panics with
+  # "Database was configured incorrectly" if it sees existing collections but
+  # no `migrations` record. We poll for `migrations` to be populated before
+  # creating our own collections. Idempotent across restarts.
+  mongo-init:
+    image: docker.io/mongo:8.3.2
+    user: "${PUID}:${PGID}"
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - stoat-data
+    environment:
+      HOME: /tmp
+      MONGO_USER: ${MONGO_ROOT_USER}
+      MONGO_PASS: ${MONGO_ROOT_PASSWORD}
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        URI="mongodb://$$MONGO_USER:$$MONGO_PASS@database:27017/revolt?authSource=admin"
+        echo "waiting for api admin_migrations to populate 'migrations' collection..."
+        timeout=300
+        while [ $$timeout -gt 0 ]; do
+          if mongosh "$$URI" --quiet --eval 'quit(db.migrations.countDocuments() > 0 ? 0 : 1)' >/dev/null 2>&1; then
+            break
+          fi
+          sleep 3
+          timeout=$$((timeout - 3))
+        done
+        if [ $$timeout -le 0 ]; then
+          echo "timeout waiting for api migration; exiting without changes (crond may restart-loop until first user activity)"
+          exit 0
+        fi
+        echo "api migration done; creating cleanup-target collections..."
+        mongosh "$$URI" --quiet --eval '
+          ["attachments","server_members"].forEach(c => {
+            try { db.createCollection(c); print("created:", c); }
+            catch(e) { print("exists:", c); }
+          });
+        '
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+          pids: 50
+
   # Garage bootstrap: assigns layout, creates S3 bucket and API key
   garage-init:
-    image: docker.io/alpine:3
+    image: docker.io/alpine:3.22.4
     # needs root for apk add; one-shot container, exits immediately
     depends_on:
       garage:

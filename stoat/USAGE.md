@@ -16,7 +16,12 @@ If you need to run as a different user, edit `PUID` and `PGID` in `.env` and re-
 # Example: switch to UID 1001
 sed -i 's/^PUID=.*/PUID=1001/' .env
 sed -i 's/^PGID=.*/PGID=1001/' .env
-chown -R 1001:1001 data/
+# Re-own every data subdir EXCEPT data/rabbit — RabbitMQ runs as
+# the in-image rabbitmq user (UID 100, GID 101); forcing any other
+# UID makes the broker fail silently (see SECURITY.md).
+for d in data/db data/redis data/garage-meta data/garage-data; do
+    chown -R 1001:1001 "$d"
+done
 docker compose up -d
 ```
 
@@ -61,7 +66,19 @@ from_address = "noreply@example.com"
 docker compose up -d
 ```
 
-First startup pulls ~3 GB of images. The `garage-init` container automatically configures S3 storage (layout, bucket, API keys) and exits.
+First startup pulls ~3 GB of images. Expected timeline:
+
+| Phase | Duration | What's happening |
+|-------|----------|------------------|
+| Images pulling | depends on bandwidth | One-time |
+| `database`, `redis` healthy | ~10–20s | |
+| `rabbit` healthy | **~3 min on first boot** | Khepri metadata store initial migration (subsequent boots: ~30s) |
+| `garage-init` | seconds | Assigns layout, creates S3 bucket and API key, exits |
+| `api` admin_migrations | ~10–30s | Sets up MongoDB schema |
+| `mongo-init` | seconds | Waits for api migration to finish, then pre-creates `attachments` / `server_members` collections so `crond` doesn't restart-loop on a fresh empty database. Exits |
+| `crond`, `pushd`, `voice-ingress`, `caddy` | ~5s | Last to start (depend on the inits) |
+
+Total first-boot: ~3–5 minutes. Restart of an already-initialized stack: under 30 seconds.
 
 ### 4. Reverse Proxy
 

@@ -43,6 +43,13 @@ done
 mkdir -p data/{db,redis,rabbit,garage-meta,garage-data}
 chown -R "${HOST_UID}:${HOST_GID}" data/ 2>/dev/null || true
 
+# rabbit runs as the in-image rabbitmq user (UID 100, GID 101). The image's
+# alpine init expects this exact user; forcing PUID:PGID makes the broker fail
+# silently (BEAM stays up but never opens AMQP). Pre-chown via a privileged
+# one-shot container since the host user can't chown to a different UID.
+docker run --rm -v "$PWD/data:/d" docker.io/alpine:3.22.4 \
+    chown -R 100:101 /d/rabbit >/dev/null
+
 # ── generate infrastructure credentials ──────────────────────────────────────
 MONGO_ROOT_USER="stoat"
 MONGO_ROOT_PASSWORD="$(rand_hex 24)"
