@@ -31,9 +31,11 @@ Services that require writable filesystems:
 | web | `inject.js` writes to `/app/dist_injected` at startup |
 | autumn | Temporary file processing during uploads |
 
-### Non-Root Execution
+### Container Execution Users
 
-All containers run as non-root:
+Most containers run as non-root. Three (`web`, `caddy`, `garage-init`) are forced
+to root by upstream image constraints — each is locked down with `cap_drop: ALL`
+to minimize blast radius, and the reasoning is in [Known Security Considerations](#known-security-considerations) below.
 
 | Service | User | How |
 |---------|------|-----|
