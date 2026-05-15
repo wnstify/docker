@@ -50,6 +50,7 @@ Production-ready Docker Compose templates for self-hosting open-source applicati
 | [Portainer CE](./portainer-ce) | Docker container management UI | [README](./portainer-ce/README.md) |
 | [Portainer Agent](./portainer-agent) | Remote Docker environment management | [README](./portainer-agent/README.md) |
 | [NGINX Proxy Manager](./npm) | Reverse proxy with SSL management UI | [README](./npm/README.md) |
+| [Dockhand](./dockhand) | Docker management UI with free SSO (Portainer alternative) | [README](./dockhand/README.md) |
 | [Watchtower](./watchtower) | Automatic Docker container updates | [README](./watchtower/README.md) |
 | [Uptime Kuma](./uptime-kuma) | Self-hosted monitoring and status pages | [README](./uptime-kuma/README.md) |
 | [MeshCentral](./meshcentral) | Remote monitoring & management (RMM) with DHI MongoDB | [README](./meshcentral/README.md) |
@@ -149,6 +150,10 @@ docker/
 │   ├── .env
 │   ├── init-data.sh
 │   ├── Caddyfile
+│   └── README.md
+│
+├── dockhand/
+│   ├── docker-compose.yml
 │   └── README.md
 │
 ├── docuseal/

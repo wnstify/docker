@@ -1,0 +1,191 @@
+# Security-Hardened Dockhand Docker Compose
+# Cloud-ready with user 1000:1000
+
+services:
+  # ===========================================
+  # POSTGRESQL DATABASE
+  # ===========================================
+  postgresql:
+    image: docker.io/library/postgres:alpine
+    container_name: dockhand-postgresql
+    hostname: postgresql
+    restart: unless-stopped
+    user: "1000:1000"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
+      POSTGRES_USER: ${PG_USER:-dockhand}
+      POSTGRES_DB: ${PG_DB:-dockhand}
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - ${PWD}/database:/var/lib/postgresql/data
+    networks:
+      - dockhand-database
+    # Security hardening
+    ipc: private
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+    tmpfs:
+      - /tmp:size=128M,mode=1777
+      - /var/run/postgresql:size=64M,mode=1777
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2'
+          pids: 100
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # ===========================================
+  # DOCKER SOCKET PROXY
+  # ===========================================
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3
+    container_name: dockhand-socket-proxy
+    hostname: socket-proxy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      VOLUMES: 1
+      EVENTS: 1
+      INFO: 1
+      SYSTEM: 1
+      POST: 1
+      DELETE: 1
+      ALLOW_START: 1
+      ALLOW_STOP: 1
+      ALLOW_RESTARTS: 1
+    networks:
+      - dockhand-socket
+    # Security hardening
+    ipc: private
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /run:size=1M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.25'
+          pids: 50
+        reservations:
+          memory: 16M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO/dev/null http://localhost:2375/_ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # ===========================================
+  # DOCKHAND SERVER
+  # ===========================================
+  dockhand:
+    image: fnsys/dockhand:latest
+    container_name: dockhand
+    hostname: dockhand
+    user: "1000:1000"
+    restart: always
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://${PG_USER}:${PG_PASS}@postgresql:5432/${PG_DB}
+    volumes:
+      - ${PWD}/data:/app/data
+    ports:
+      - 127.0.0.1:3000:3000 # Localhost only with reverse proxy
+    networks:
+      - dockhand-frontend
+      - dockhand-database
+      - dockhand-socket
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      socket-proxy:
+        condition: service_healthy
+    # Security hardening
+    ipc: private
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+    tmpfs:
+      - /tmp:size=128M,mode=1777
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '3'
+          pids: 200
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "/usr/sbin/curl", "-sf", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+# ===========================================
+# NETWORKS - Isolated by Function
+# ===========================================
+networks:
+  dockhand-frontend:
+    driver: bridge
+    name: dockhand-frontend
+  dockhand-database:
+    driver: bridge
+    name: dockhand-database
+    internal: true
+  dockhand-socket:
+    driver: bridge
+    name: dockhand-socket
+    internal: true
