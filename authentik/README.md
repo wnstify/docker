@@ -34,7 +34,7 @@
 
 ### 1. Create Docker Networks
 
-One of two is `--internal` (no internet egress for postgres/redis):
+One of two is `--internal` (no internet egress for postgres):
 
 ```bash
 docker network create authentik-front
@@ -51,15 +51,19 @@ nano .env
 The `.env.example` file has `openssl` recipes next to each critical secret. The three that matter most:
 
 - `PG_PASS` — postgres password. Generate with `openssl rand -base64 36 | tr -d '\n'`.
-- `REDIS_PASSWORD` — redis password (defense in depth — redis is already on an internal-only network). Same generator.
 - `AUTHENTIK_SECRET_KEY` — signs session cookies. Generate with `openssl rand -base64 60 | tr -d '\n'`. **Losing this invalidates all sessions; leaking it lets attackers forge them.**
 
-Set `PUID`/`PGID` to your host UID/GID (`id` will tell you). All four containers run as this user — no root in any container.
+Set `PUID`/`PGID` to your host UID/GID (`id` will tell you). All three containers run as this user — no root in any container.
+
+> **No Redis container?** Correct. Authentik 2025.10 (Oct 2025) removed
+> the Redis dependency entirely — task queue, cache, and websocket
+> channels all moved to Postgres-backed implementations. This compose
+> targets 2026.2.x, so no Redis is needed or used.
 
 ### 3. Create Data Directories
 
 ```bash
-mkdir -p data/{database,redis,media,certs,custom-templates}
+mkdir -p data/{database,media,certs,custom-templates}
 ```
 
 ### 4. Deploy
@@ -86,7 +90,6 @@ Two options:
 | `PG_USER` | Postgres user / owner of the authentik DB | Yes (default `authentik`) |
 | `PG_PASS` | Postgres password | Yes |
 | `PG_DB` | Database name | Yes (default `authentik`) |
-| `REDIS_PASSWORD` | Redis password (also enforced by `--requirepass`) | Yes |
 | `AUTHENTIK_SECRET_KEY` | Session cookie signing key | Yes |
 | `AUTHENTIK_ERROR_REPORTING__ENABLED` | Sentry error reporting | No (default `false`) |
 | `COMPOSE_PORT_HTTP` / `COMPOSE_PORT_HTTPS` | Host port bindings (127.0.0.1) | No (defaults 9000/9443) |
@@ -119,8 +122,7 @@ If you want end-to-end TLS (Caddy → authentik), target the HTTPS listener with
 
 | Path | Description |
 |------|-------------|
-| `./data/database` | PostgreSQL data |
-| `./data/redis` | Redis snapshots (sessions, celery queue) |
+| `./data/database` | PostgreSQL data (also stores cache, task queue, and channels — no Redis needed) |
 | `./data/media` | User-uploaded media (avatars, branding assets) |
 | `./data/certs` | TLS certs for SAML/RADIUS providers (worker manages) |
 | `./data/custom-templates` | Custom email/flow templates |
@@ -136,17 +138,17 @@ This template ships with a hardened default configuration:
 
 | Layer | Setting | Effect |
 |---|---|---|
-| Capabilities | `cap_drop: ALL` on all four services, **zero `cap_add`** (verified by test, May 2026) | No Linux capabilities granted to any container |
-| Non-root | All containers run as `${PUID}:${PGID}` (default 1000) | No root in any container — postgres, redis, server, worker all UID 1000 |
+| Capabilities | `cap_drop: ALL` on all three services, **zero `cap_add`** (verified by test, May 2026) | No Linux capabilities granted to any container |
+| Non-root | All containers run as `${PUID}:${PGID}` (default 1000) | No root in any container — postgres, server, worker all UID 1000 |
 | Privileges | `security_opt: no-new-privileges` on all containers | Setuid binaries cannot gain caps |
 | IPC | `ipc: private` on all containers | Isolated SysV/POSIX IPC namespace |
-| Process budget | `pids: 200` (pg) / `100` (redis) / `500` (server) / `500` (worker) | Caps fork sprawl |
-| Two-network split | `authentik-db` created with `--internal` | Postgres + Redis have no internet egress, no host ports |
+| Process budget | `pids: 300` (pg) / `500` (server) / `500` (worker) | Caps fork sprawl |
+| Two-network split | `authentik-db` created with `--internal` | Postgres has no internet egress, no host ports |
 | Port exposure | `127.0.0.1` only on 9000/9443 | Only the reverse proxy can reach authentik |
 | Postgres auth | `SCRAM-SHA-256` (`POSTGRES_HOST_AUTH_METHOD`) | Stronger than the default md5 |
-| Redis auth | `--requirepass` + `AUTHENTIK_REDIS__PASSWORD` | Defense in depth even on an internal-only network |
 | Docker socket | **NOT mounted** on the worker (upstream default mounts it as root) | Worker cannot escape to host — see below for outpost integration |
-| Healthchecks | `ak healthcheck` (server/worker), `pg_isready` (postgres), `redis-cli ping` (redis) | Startup gated via `depends_on: service_healthy` |
+| Healthchecks | `ak healthcheck` (server/worker), `pg_isready` (postgres) | Startup gated via `depends_on: service_healthy` |
+| No Redis | Authentik 2025.10+ moved cache/tasks/channels to Postgres | One less container, one less attack surface, one less secret to rotate |
 
 ### Optional Upgrade — Docker Outposts
 

@@ -1,24 +1,30 @@
-# Authentik — Hardened Docker Compose (server + worker + postgres + redis)
+# Authentik — Hardened Docker Compose (server + worker + postgres)
 # Open-source SSO / identity provider: https://goauthentik.io/
 #
-# Architecture:
+# Architecture (3 services, no Redis):
 #   - postgres  — official postgres:18.4 (internal-only net, no internet)
-#   - redis     — official redis:7.4.9-alpine (internal-only, password-protected)
 #   - server    — ghcr.io/goauthentik/server (web UI + API on 9000/9443)
-#   - worker    — same image, command: worker (Celery background tasks)
+#   - worker    — same image, command: worker (Celery-style background tasks,
+#                 now backed by Postgres queue instead of Redis)
+#
+# Note on Redis: authentik 2025.10 (Oct 2025) removed the Redis dependency
+# entirely — task queue, cache, and websocket channels all moved to
+# Postgres-backed implementations (django_postgres_cache,
+# django_channels_postgres, authentik_tasks). This compose targets 2026.2.x
+# so there is intentionally no redis service.
 #
 # Security baseline (verified by test, May 2026):
-#   - All four containers run as ${PUID}:${PGID} (no root) and need
+#   - All three containers run as ${PUID}:${PGID} (no root) and need
 #     ZERO Linux capabilities — every service starts and runs healthy
 #     with cap_drop: ALL and no cap_add at all.
 #   - security_opt: no-new-privileges; ipc: private
 #   - tmpfs for ephemeral writes; deploy.resources limits incl. pids
 #   - Two-network split: authentik-front (external bridge — reverse-proxy
 #     reach + internet egress for SMTP / OIDC / webhooks) and
-#     authentik-db (--internal, no internet egress for postgres/redis)
+#     authentik-db (--internal, no internet egress for postgres)
 #   - 127.0.0.1 port binding — reverse proxy in front for TLS
 #   - Healthchecks gate startup via depends_on; built-in ak healthcheck
-#     for server/worker, pg_isready for postgres, redis-cli ping for redis
+#     for server/worker, pg_isready for postgres
 #   - Postgres uses SCRAM-SHA-256 password auth (stronger than default md5)
 #   - Worker has NO docker.sock mount by default — see README for the
 #     optional outpost-integration upgrade path
@@ -27,7 +33,7 @@
 #   cp .env.example .env  &&  fill secrets (openssl recipes in the file)
 #   docker network create authentik-front
 #   docker network create --internal authentik-db
-#   mkdir -p data/{database,redis,media,certs,custom-templates}
+#   mkdir -p data/{database,media,certs,custom-templates}
 #   docker compose up -d
 
 name: authentik
@@ -68,69 +74,18 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
-          cpus: "1.0"
-          pids: 200
+          memory: 2g
+          cpus: "2.0"
+          pids: 300
         reservations:
-          memory: 256m
-          cpus: "0.25"
+          memory: 512m
+          cpus: "0.5"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h localhost -U ${PG_USER:-authentik} -d ${PG_DB:-authentik}"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 30s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # CACHE / TASK BROKER
-  # ═══════════════════════════════════════════════════════════════════════════
-
-  redis:
-    image: redis:7.4.9-alpine
-    container_name: authentik-redis
-    restart: unless-stopped
-    user: "${PUID:-1000}:${PGID:-1000}"
-    command:
-      - redis-server
-      - --requirepass
-      - ${REDIS_PASSWORD:?redis password required}
-      - --save
-      - "60"
-      - "1"
-      - --loglevel
-      - warning
-    environment:
-      # REDISCLI_AUTH lets the healthcheck call redis-cli without putting
-      # the password on the command line (which would appear in ps).
-      REDISCLI_AUTH: ${REDIS_PASSWORD}
-    volumes:
-      - ./data/redis:/data
-    networks:
-      - authentik-db
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    ipc: private
-    tmpfs:
-      - /tmp:size=64m
-    deploy:
-      resources:
-        limits:
-          memory: 512m
-          cpus: "0.5"
-          pids: 100
-        reservations:
-          memory: 64m
-          cpus: "0.1"
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
@@ -146,15 +101,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       # localhost-only — front with a reverse proxy for public TLS.
       - "127.0.0.1:${COMPOSE_PORT_HTTP:-9000}:9000"
       - "127.0.0.1:${COMPOSE_PORT_HTTPS:-9443}:9443"
     environment:
-      AUTHENTIK_REDIS__HOST: redis
-      AUTHENTIK_REDIS__PASSWORD: ${REDIS_PASSWORD}
       AUTHENTIK_POSTGRESQL__HOST: postgres
       AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
       AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
@@ -189,7 +140,7 @@ services:
           memory: 512m
           cpus: "0.25"
     healthcheck:
-      # Built-in ak healthcheck; covers gunicorn + DB + redis reachability.
+      # Built-in ak healthcheck; covers gunicorn + DB reachability.
       test: ["CMD", "ak", "healthcheck"]
       interval: 30s
       timeout: 10s
@@ -199,7 +150,7 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # BACKGROUND WORKER (Celery)
+  # BACKGROUND WORKER
   # ═══════════════════════════════════════════════════════════════════════════
 
   worker:
@@ -210,11 +161,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
-      AUTHENTIK_REDIS__HOST: redis
-      AUTHENTIK_REDIS__PASSWORD: ${REDIS_PASSWORD}
       AUTHENTIK_POSTGRESQL__HOST: postgres
       AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
       AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
@@ -271,6 +218,6 @@ networks:
   # callbacks, outbound webhooks, LDAP source sync, etc.
   authentik-front:
     external: true
-  # Internal: postgres + redis only — no internet egress, no host port.
+  # Internal: postgres only — no internet egress, no host port.
   authentik-db:
     external: true
