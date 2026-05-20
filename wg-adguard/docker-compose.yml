@@ -26,8 +26,6 @@ services:
       - NET_ADMIN
     security_opt:
       - no-new-privileges:true
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
   # ══════════════════════════════════════════════════════════════════════════════
   # WG-EASY (VPN Server)
@@ -67,8 +65,6 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1
     security_opt:
       - no-new-privileges:true
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # NETWORK CONFIGURATION

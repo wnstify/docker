@@ -11,8 +11,6 @@ services:
     volumes:
       - "${PWD}/data:/data"
       - "/path/to/your/music/folder:/music:ro"
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - your-network # Change Value
     security_opt:

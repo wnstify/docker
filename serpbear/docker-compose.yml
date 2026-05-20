@@ -15,8 +15,6 @@ services:
       - PGID=1000
     volumes:
       - ${PWD}/serpbear_appdata:/app/data
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - your-network # Change Value
     security_opt:

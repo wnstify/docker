@@ -15,8 +15,6 @@ services:
       - "${PWD}/database:/var/lib/postgresql/data:rw"
     security_opt:
       - no-new-privileges:true
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - zulip-db
     ports:
@@ -40,8 +38,6 @@ services:
       PGID: "1000"
     security_opt:
       - no-new-privileges:true
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - zulip-memcached
     ports:
@@ -58,8 +54,6 @@ services:
       - "${PWD}/rabbitmq:/var/lib/rabbitmq:rw"
     security_opt:
       - no-new-privileges:true
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - zulip-rabbitmq
   redis:
@@ -79,8 +73,6 @@ services:
       - "${PWD}/redis:/data:rw"
     security_opt:
       - no-new-privileges:true
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - zulip-redis
     ports:
@@ -147,8 +139,6 @@ services:
         hard: 1048576
     security_opt:
       - no-new-privileges:true
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - zulip
       - zulip-db

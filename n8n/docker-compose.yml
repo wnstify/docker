@@ -77,8 +77,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
   n8n:
     image: docker.n8n.io/n8nio/n8n:2.21.4
@@ -153,8 +151,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
   runner:
     # Executes Code/Function nodes in a separate sandbox container.
@@ -197,8 +193,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
 networks:
   # External-facing: reverse proxy reaches n8n here (or via 127.0.0.1:5678).

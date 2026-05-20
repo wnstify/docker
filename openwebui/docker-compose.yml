@@ -20,8 +20,6 @@ services:
       - ${PWD}/data:/app/backend/data
     security_opt:
       - no-new-privileges:true
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     restart: unless-stopped
     networks:
       - your-network # Change Value

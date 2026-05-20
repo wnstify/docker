@@ -78,8 +78,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
   baserow:
     image: baserow/baserow:2.2.2
@@ -153,8 +151,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 300s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
 networks:
   # External-facing: reverse proxy reaches baserow here (or via 127.0.0.1:89).

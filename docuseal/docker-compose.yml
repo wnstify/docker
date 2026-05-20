@@ -21,8 +21,6 @@ services:
       - SMTP_ENABLE_STARTTLS_AUTO=true
       - SMTP_PORT=587
       - SMTP_DOMAIN=
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - docuseal
       - docuseal-db
@@ -48,8 +46,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - docuseal-db
     security_opt:
@@ -58,8 +54,6 @@ services:
   docuseal-gotenberg:
     restart: unless-stopped
     image: gotenberg/gotenberg:8.30.0
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - docuseal
     security_opt:

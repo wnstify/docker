@@ -75,8 +75,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
     # === Hardware acceleration (optional) ==================================
     # Intel/AMD VAAPI/QSV: uncomment devices + group_add. Find your render

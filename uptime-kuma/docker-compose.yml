@@ -77,8 +77,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
   uptime-kuma:
     image: docker.io/louislam/uptime-kuma:2.3.2
@@ -130,8 +128,6 @@ services:
       timeout: 30s
       retries: 5
       start_period: 180s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
 networks:
   # Frontend: reverse proxy reaches uptime-kuma here (or via 127.0.0.1:3008).

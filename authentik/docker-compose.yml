@@ -86,8 +86,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # WEB UI + API
@@ -146,8 +144,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # BACKGROUND WORKER
@@ -205,8 +201,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # NETWORKS
