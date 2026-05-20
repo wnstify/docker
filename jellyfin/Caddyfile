@@ -1,0 +1,13 @@
+# Reverse proxy for Jellyfin — Caddy example.
+# Replace jellyfin.example.com with your domain. Caddy auto-provisions TLS,
+# handles WebSocket upgrades, and forwards Range requests for streaming.
+
+jellyfin.example.com {
+    encode zstd gzip
+
+    # Jellyfin's own client-IP detection — populate the headers it inspects.
+    reverse_proxy http://127.0.0.1:8096 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

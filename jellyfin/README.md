@@ -46,24 +46,41 @@ Ensure your media directories exist and are accessible:
 └── shows/
 ```
 
-### 2. Update Docker Compose
+### 2. Create the Docker Network
 
-Edit `docker-compose.yml`:
-- Replace `your-network` with your Docker network name
-- Update `TZ` to your timezone
-- Modify volume paths to match your media locations
+```bash
+docker network create jellyfin
+```
 
-### 3. Deploy
+### 3. Configure Environment
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Set `PUID` / `PGID` to your host user (run `id` to find them), and `TZ`
+to your timezone. `UMASK` defaults to `022` — change only if you need
+group-writable shared media.
+
+### 4. Update Media Paths
+
+Edit the three `# Change Value` lines in `docker-compose.yml` so the
+left-hand side points at your host's media directories. They are mounted
+**read-only** (`:ro`) by default — Jellyfin keeps metadata inside
+`/config`, so it doesn't need to write into your library.
+
+### 5. Deploy
 
 ```bash
 docker compose up -d
 ```
 
-### 4. Initial Setup
+### 6. Initial Setup
 
-1. Access Jellyfin at `http://your-server:8096`
+1. Access Jellyfin at `http://your-server:8096` (or via your reverse proxy)
 2. Follow the setup wizard
-3. Add your media libraries
+3. Add your media libraries (point at `/data/media`, `/data/movies`, `/data/shows`)
 4. Create user accounts
 
 ## Configuration
@@ -72,9 +89,10 @@ docker compose up -d
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PUID` | User ID for file permissions | `1000` |
-| `PGID` | Group ID for file permissions | `1000` |
-| `TZ` | Timezone | `Europe/Bratislava` |
+| `PUID`   | Host UID that owns `/config` and media | `1000` |
+| `PGID`   | Host GID that owns `/config` and media | `1000` |
+| `TZ`     | Container timezone | `Europe/Bratislava` |
+| `UMASK`  | File-creation mask (`022` = files 644 / dirs 755) | `022` |
 
 ### Reverse Proxy (Caddy)
 
@@ -99,17 +117,44 @@ jellyfin.example.com {
 | `/data/movies` | Movies (read-only) |
 | `/data/shows` | TV Shows (read-only) |
 
+## Security Features
+
+This template ships with a hardened default configuration:
+
+| Layer | Setting | Effect |
+|---|---|---|
+| Capabilities | `cap_drop: ALL` + 5 minimum caps (CHOWN/SETUID/SETGID/DAC_OVERRIDE/FOWNER) | Only what s6-overlay needs for PUID/PGID swap; no NET/SYS caps |
+| Privileges | `security_opt: no-new-privileges` | Setuid binaries cannot gain caps |
+| IPC | `ipc: private` | Isolated SysV/POSIX IPC namespace |
+| Process budget | `pids: 500` | Caps ffmpeg thread sprawl; fork-bomb resistance |
+| Memory / CPU | 4 GiB / 4 CPUs limit | Won't starve other stacks during transcodes |
+| Port exposure | `127.0.0.1:8096:8096` | Only the reverse proxy can reach jellyfin |
+| Media volumes | `:ro` bind mounts | A hypothetical jellyfin RCE can't tamper with your library |
+| Healthcheck | `curl /health` (unauthenticated endpoint) | No credentials on the command line |
+| Ephemeral writes | `tmpfs` for `/tmp` (512 MiB) | ffmpeg scratch stays in RAM, never hits disk |
+
 ## Hardware Acceleration
 
-To enable GPU transcoding, uncomment the `devices` section in `docker-compose.yml`:
+GPU transcoding stays compatible with the hardening above. Uncomment the
+`devices` + `group_add` block in `docker-compose.yml`:
 
 ```yaml
 devices:
   - /dev/dri/renderD128:/dev/dri/renderD128
   - /dev/dri/card0:/dev/dri/card0
+group_add:
+  - "104"  # Replace with your host's `render` group GID
 ```
 
-Then enable hardware acceleration in Jellyfin's Dashboard → Playback settings.
+Find your `render` GID with:
+
+```bash
+getent group render | cut -d: -f3
+```
+
+For NVIDIA NVENC, use the dedicated runtime instead (see the commented
+block in `docker-compose.yml`). Then enable hardware acceleration in
+Jellyfin's Dashboard → Playback settings.
 
 ## Client Apps
 

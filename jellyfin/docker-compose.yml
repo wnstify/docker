@@ -1,29 +1,100 @@
+# Jellyfin — Hardened Docker Compose (LSIO image kept by choice)
+# Self-hosted media server: https://jellyfin.org/
+#
+# Security baseline:
+#   - cap_drop: ALL with minimum caps for s6-overlay's PUID/PGID swap
+#   - security_opt: no-new-privileges; ipc: private
+#   - non-root long-running process (s6 drops to PUID:PGID)
+#   - tmpfs for /tmp (transcoding scratch), deploy.resources limits incl. pids
+#   - Media volumes mounted :ro — metadata kept inside /config (default)
+#   - 127.0.0.1 port binding — reverse proxy in front for TLS
+#   - Healthcheck hits jellyfin's /health endpoint (no creds in cmdline)
+#
+# Setup:
+#   cp .env.example .env  &&  edit values
+#   docker network create jellyfin
+#   # Change media bind paths below to match your host
+#   docker compose up -d
+
+name: jellyfin
+
 services:
   jellyfin:
     image: lscr.io/linuxserver/jellyfin:10.11.8
     container_name: jellyfin
+    restart: unless-stopped
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Bratislava #Change to your timezone
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Europe/Bratislava}
+      UMASK: ${UMASK:-022}
+      # Optional: tells jellyfin its external URL so client redirects work.
+      # JELLYFIN_PublishedServerUrl: https://jellyfin.example.com
     volumes:
       - ${PWD}/config:/config
-      - /media-data/media:/data/media #Change to your desired location
-      - /media-data/movies:/data/movies #Change to your desired location
-      - /media-data/shows:/data/shows #Change to your desired location
+      # Media libraries — :ro so a hypothetical jellyfin RCE can't tamper
+      # with files. Jellyfin still works fully; metadata lives in /config.
+      - /media-data/media:/data/media:ro    # Change Value
+      - /media-data/movies:/data/movies:ro  # Change Value
+      - /media-data/shows:/data/shows:ro    # Change Value
     ports:
-      - 127.0.0.1:8096:8096 #Localhost only with reverse-proxy
-    restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+      - "127.0.0.1:8096:8096"  # localhost only — front with a reverse proxy
+    networks:
+      - jellyfin
+    cap_drop:
+      - ALL
+    cap_add:
+      # Minimum caps s6-overlay needs at startup to chown /config and
+      # drop privileges to PUID:PGID via s6-setuidgid. No NET_* / SYS_*.
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+      - FOWNER
     security_opt:
       - no-new-privileges:true
-    networks:
-      - your-network # Change Value
-### Uncomment only if you have a GPU or Integrated GPU on your server to allow HW Acceleration.
-#    devices:
-#      - /dev/dri/renderD128:/dev/dri/renderD128
-#      - /dev/dri/card0:/dev/dri/card0
+    ipc: private
+    tmpfs:
+      # ffmpeg scratch; jellyfin's main transcode dir is /config/transcodes
+      # (persistent) so /tmp doesn't need to be huge.
+      - /tmp:size=512m
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: "4.0"
+          pids: 500
+        reservations:
+          memory: 256m
+          cpus: "0.25"
+    healthcheck:
+      # /health is unauthenticated and returns 200 OK when ready.
+      # curl is preinstalled in the LSIO image.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+    # === Hardware acceleration (optional) ==================================
+    # Intel/AMD VAAPI/QSV: uncomment devices + group_add. Find your render
+    # group GID on the host with:  getent group render | cut -d: -f3
+    # devices:
+    #   - /dev/dri/renderD128:/dev/dri/renderD128
+    #   - /dev/dri/card0:/dev/dri/card0
+    # group_add:
+    #   - "104"  # Replace with your host's `render` group GID
+    #
+    # NVIDIA NVENC: requires nvidia-container-toolkit on the host. Use
+    # the dedicated runtime instead of the devices block above:
+    # runtime: nvidia
+    # environment:
+    #   NVIDIA_VISIBLE_DEVICES: all
+    #   NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
+    # =====================================================================
+
 networks:
-    your-network: # Change Value
-      external: true
+  jellyfin:
+    external: true
