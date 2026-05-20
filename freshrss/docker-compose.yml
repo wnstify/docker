@@ -1,22 +1,92 @@
+# FreshRSS — Hardened Docker Compose (upstream-official Alpine image)
+# Self-hosted RSS aggregator: https://freshrss.org/
+#
+# Default DB: SQLite (bundled, file-based). The FreshRSS project recommends
+# the default install "for most cases" — see README for when to upgrade
+# to Postgres/MariaDB.
+#
+# Security baseline:
+#   - cap_drop: ALL with minimum caps for Apache + the entrypoint's chown
+#   - security_opt: no-new-privileges; ipc: private
+#   - Apache workers drop to the non-root `apache` user inside the image;
+#     no s6-overlay layer (single-process container)
+#   - tmpfs for /tmp; deploy.resources limits incl. pids
+#   - 127.0.0.1 port binding — reverse proxy in front for TLS
+#   - Healthcheck hits Apache via wget (busybox, no creds in cmdline)
+#
+# Setup:
+#   cp .env.example .env  &&  edit values
+#   docker network create freshrss
+#   docker compose up -d
+
+name: freshrss
+
 services:
   freshrss:
-    image: lscr.io/linuxserver/freshrss:1.27.0
+    # Upstream-official image (NOT lscr.io/linuxserver/freshrss):
+    #   - Maintained by the FreshRSS team directly
+    #   - Patched same-day as upstream releases (LSIO trails ~1 week)
+    #   - Single-process container (Apache as PID 1), no s6-overlay
+    #   - 25 MB compressed (smaller than the LSIO build)
+    # See README "Why upstream-official?" for the full comparison.
+    image: freshrss/freshrss:1.29.0-alpine
     container_name: freshrss
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC #Change to your timezone
-    volumes:
-      - ${PWD}/fresh-rss:/config
-    ports:
-      - 127.0.0.1:88:80 #Localhost only with reverse-proxy
     restart: unless-stopped
+    environment:
+      # Built-in cron schedule (minute field of crontab). Default refreshes
+      # feeds at HH:03 and HH:33 — staggered to spread network load.
+      CRON_MIN: ${CRON_MIN:-3,33}
+      # Trust X-Forwarded-* headers from RFC1918 + loopback so FreshRSS
+      # sees the real client IP through your reverse proxy.
+      TRUSTED_PROXY: 127.0.0.0/8 172.16.0.0/12 192.168.0.0/16 10.0.0.0/8
+      TZ: ${TZ:-Europe/Bratislava}
+    volumes:
+      # Holds config.php, per-user SQLite database files, and per-user logs.
+      - ${PWD}/data:/var/www/FreshRSS/data
+      # Optional — uncomment to persist installed extensions.
+      # - ${PWD}/extensions:/var/www/FreshRSS/extensions
+    ports:
+      - "127.0.0.1:88:80"  # localhost only — front with a reverse proxy
+    networks:
+      - freshrss
+    cap_drop:
+      - ALL
+    cap_add:
+      # Apache binds privileged port 80 inside the container.
+      - NET_BIND_SERVICE
+      # Apache master spawns worker processes as the `apache` user.
+      - SETUID
+      - SETGID
+      # First-run init chgrps /var/www/FreshRSS/data to the `apache` group
+      # so Apache workers can write through group membership. Without this,
+      # the install wizard hits "Permission denied" on data/cache/index.html.
+      # DAC_OVERRIDE / FOWNER NOT needed — verified by test.
+      - CHOWN
     security_opt:
       - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=128m
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 64m
+          cpus: "0.1"
+    healthcheck:
+      # /i/ is FreshRSS's install/index entrypoint — returns 200 once
+      # Apache + PHP are ready. wget is busybox, preinstalled in Alpine.
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1/i/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    networks:
-      - your-network # Change Value
+
 networks:
-    your-network: # Change Value
-      external: true
+  freshrss:
+    external: true
