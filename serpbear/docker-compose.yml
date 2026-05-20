@@ -1,24 +1,102 @@
+# SerpBear — Hardened Docker Compose (single service, no DB tier)
+# Self-hosted SEO keyword rank tracker: https://serpbear.com/
+#
+# Architecture (1 service):
+#   - serpbear  — towfiqi/serpbear:3.1.0 (Next.js + a small cron worker,
+#                 embeds SQLite for keyword/domain history; no external
+#                 DB / cache / queue)
+#
+# Security baseline (verified by test, May 2026):
+#   - Runs as ${PUID}:${PGID} (image's default user is UID 1001 named
+#     "nextjs"; you can override via PUID/PGID — just chown ./data first).
+#     cap_drop: ALL with ZERO cap_add — verified healthy under test.
+#   - security_opt: no-new-privileges; ipc: private
+#   - tmpfs for ephemeral writes; deploy.resources limits incl. pids
+#   - 127.0.0.1 port binding — reverse proxy in front for TLS
+#   - Healthcheck hits Next.js root via wget (busybox, no creds in cmdline)
+#   - SECRET / APIKEY pinned via .env so sessions + API tokens survive
+#     restarts
+#
+# Setup:
+#   cp .env.example .env  &&  fill PASSWORD, SECRET, APIKEY (openssl recipes in .env.example)
+#   docker network create serpbear-front
+#   mkdir -p data  &&  sudo chown -R "${PUID:-1001}:${PGID:-1001}" data
+#   docker compose up -d
+
+name: serpbear
+
 services:
-  serpbear-app:
-    image: towfiqi/serpbear:3.0.0
+
+  serpbear:
+    image: towfiqi/serpbear:3.1.0
     container_name: serpbear
     restart: unless-stopped
+    # Image's built-in non-root user is UID/GID 1001 (nextjs:nodejs).
+    # Override here only if you've chowned ./data to a different UID.
+    user: "${PUID:-1001}:${PGID:-1001}"
     ports:
-      - 127.0.0.1:3000:3000
+      # localhost-only — front with a reverse proxy for public TLS.
+      - "127.0.0.1:${SERPBEAR_PORT:-3000}:3000"
     environment:
-      - USER=${SERPBEAR_USER}
-      - PASSWORD=${SERPBEAR_PASSWORD}
-      - SECRET=${SERPBEAR_SECRET}
-      - APIKEY=${SERPBEAR_APIKEY}
-      - NEXT_PUBLIC_APP_URL=${SERPBEAR_URL}
-      - PUID=1000
-      - PGID=1000
+      # USER_NAME (NOT USER — bash reserves USER) is the login username.
+      USER_NAME: ${SERPBEAR_USER:-admin}
+      # CRITICAL: login password for the single admin account.
+      PASSWORD: ${SERPBEAR_PASSWORD:?login password required}
+      # CRITICAL: signs session JWTs. Losing it logs everyone out but
+      # doesn't lose data; leaking it lets attackers forge sessions.
+      SECRET: ${SERPBEAR_SECRET:?session secret required}
+      # CRITICAL: bearer token for the REST API (Authorization header).
+      APIKEY: ${SERPBEAR_APIKEY:?api key required}
+      # Session lifetime, in hours.
+      SESSION_DURATION: ${SERPBEAR_SESSION_DURATION:-24}
+      # Public URL the app advertises to itself (used in emails, OAuth
+      # callbacks, CSRF origin checks). Include scheme.
+      NEXT_PUBLIC_APP_URL: ${SERPBEAR_URL:-http://localhost:3000}
+      TZ: ${TZ:-Europe/Bratislava}
+    # env_file pulls in optional SEARCH_CONSOLE_* (Google Search Console
+    # service-account integration) and SMTP_* (email notifications)
+    # without forcing them to be set.
+    env_file:
+      - .env
     volumes:
-      - ${PWD}/serpbear_appdata:/app/data
+      # Holds database.sqlite, settings.json, and the failed-scrape queue.
+      - ./data:/app/data
     networks:
-      - your-network # Change Value
+      - serpbear-front
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=128m
+    deploy:
+      resources:
+        limits:
+          # Next.js + a small cron worker. Bump if you track thousands of
+          # keywords across many domains.
+          memory: 1g
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 128m
+          cpus: "0.1"
+    healthcheck:
+      # Root path serves the Next.js login page with 200 OK once the app
+      # is ready. wget is busybox, preinstalled in the node:alpine base.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000 >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ═══════════════════════════════════════════════════════════════════════════
+
 networks:
-  your-network: # Change Value
+  # External bridge: reverse proxy reaches serpbear via the 127.0.0.1 port
+  # binding; also gives serpbear internet egress for the scraping APIs
+  # (serper.dev, serpapi, etc.) and Google Search Console / Ads OAuth.
+  serpbear-front:
     external: true
