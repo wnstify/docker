@@ -1,6 +1,6 @@
 # MeshCentral RMM — Hardened Docker Deployment
 
-Self-hosted remote monitoring and management (RMM) platform using [MeshCentral](https://meshcentral.com) with [Docker Hardened Images](https://dhi.io) for MongoDB.
+Self-hosted remote monitoring and management (RMM) platform using [MeshCentral](https://meshcentral.com) with a hardened compose baseline (capability-dropped, network-segmented, resource-limited).
 
 Supports remote desktop, terminal, file transfer, and Intel AMT management across Linux, Windows, and macOS — all from a web browser.
 
@@ -11,7 +11,7 @@ Browsers ── Internet ── Pangolin (TLS) ── 127.0.0.1:4430
                                               |
                                         [mc-frontend] ── MeshCentral (Node.js, port 443)
                                               |               |
-Agents ── Tailscale (WireGuard) ──────────────┘         [mc-internal] ── MongoDB 8.0 (DHI)
+Agents ── Tailscale (WireGuard) ──────────────┘         [mc-internal] ── MongoDB 8.0
 ```
 
 **Standard mode**: Agents and web UI both go through Pangolin on port 443.
@@ -22,8 +22,16 @@ Agents ── Tailscale (WireGuard) ──────────────�
 
 | Service | Image | Purpose |
 |---------|-------|---------|
-| **meshcentral** | `ghcr.io/ylianst/meshcentral:1.1.58-mongodb` | RMM web server + agent hub |
-| **mongodb** | `dhi.io/mongodb:8.0-debian13` | Database (Docker Hardened Image, zero CVEs) |
+| **meshcentral** | `ghcr.io/ylianst/meshcentral:1.1.59-mongodb` | RMM web server + agent hub |
+| **mongodb** | `mongo:8.0.23` | Database (official Docker image, internal network only) |
+
+> **Optional upgrade — Docker Hardened Images:** if you have a [Docker
+> Hardened Images](https://dhi.io) subscription, swap `mongo:8.0.23` for
+> `dhi.io/mongodb:8.0-debian13` for a distroless runtime with faster CVE
+> patches. Same env vars and `/data/db` layout — drop-in replacement.
+> The shell-based healthcheck (`mongosh`) will need to be disabled since
+> the DHI runtime has no shell; MeshCentral's healthcheck still covers
+> full-stack health.
 
 ### Ports
 

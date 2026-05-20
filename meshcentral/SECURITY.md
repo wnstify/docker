@@ -19,24 +19,28 @@ This deployment follows strict container hardening standards for production self
 
 | Service | User | Notes |
 |---------|------|-------|
-| meshcentral | root | Needs write to `/opt/meshcentral` for runtime modules and certs |
-| mongodb | `${PUID}:${PGID}` | DHI runtime, runs as host user with pre-owned data dirs |
+| meshcentral | root | Image entrypoint runs node as root; needs write to `/opt/meshcentral` for cert generation and runtime modules |
+| mongodb | `${PUID}:${PGID}` | Official entrypoint detects non-root start and skips the root chown/gosu privilege drop |
 
 ### Minimal Capability Grants
 
+Cap minimums were verified by iterative testing (May 2026) — each row
+lists *only* what the service fails to start without.
+
 | Service | Capabilities | Reason |
 |---------|-------------|--------|
-| meshcentral | `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID` | Entrypoint manages permissions, cert generation, npm module installs |
-| mongodb | **None** | Zero capabilities — DHI distroless runtime |
+| meshcentral | `NET_BIND_SERVICE`, `DAC_OVERRIDE` | Bind port 443 + 80 inside container; write certs to bind-mount owned by host UID |
+| mongodb | **None** | `user: ${PUID}:${PGID}` skips the entrypoint's chown/gosu dance — mongod exec's directly |
 
-### Docker Hardened Images
+### Optional Upgrade — Docker Hardened Images
 
-MongoDB uses `dhi.io/mongodb:8.0-debian13` — a Docker Hardened Image with:
-- Zero known CVEs
-- Minimal attack surface (distroless runtime)
-- CIS benchmark compliant
-- Complete SBOM and SLSA Level 3 provenance
+For deployments with a [Docker Hardened Images](https://dhi.io) subscription, swap `mongo:8.0.23` for `dhi.io/mongodb:8.0-debian13` for:
+- Zero known CVEs (curated patch flow)
+- Distroless runtime — no shell, smaller attack surface
+- CIS benchmark compliant, full SBOM, SLSA Level 3 provenance
 - Runs as non-root (`mongodb`, UID 999)
+
+DHI requires a paid Docker subscription, so the public template defaults to the official `mongo` image to keep the deployment friction-free for everyone. The `mongosh`-based healthcheck must be disabled when switching to DHI (no shell in the runtime); MeshCentral's own healthcheck still covers full-stack health.
 
 ## Network Segmentation
 
@@ -99,15 +103,15 @@ MeshCentral generates self-signed TLS certificates on first boot, stored in `dat
 | Service | Check | Interval |
 |---------|-------|----------|
 | meshcentral | Node.js HTTPS request to `/health.ashx` | 30s |
-| mongodb | Disabled (DHI runtime has no shell) | — |
+| mongodb | `mongosh --eval "db.adminCommand('ping').ok"` | 10s |
 
-MeshCentral's healthcheck covers the full stack — if MongoDB is down, MeshCentral's health endpoint will fail.
+MongoDB's `depends_on: condition: service_healthy` gates MeshCentral startup until mongo accepts queries. MeshCentral's own healthcheck then covers full-stack health — if MongoDB is unreachable, the HTTPS endpoint fails.
 
 ## Known Security Considerations
 
 1. **Self-signed internal TLS**: MeshCentral uses self-signed certificates internally. The reverse proxy must skip TLS verification to the backend (`tls_insecure_skip_verify`). Public-facing TLS is handled by the reverse proxy with valid certificates.
 
-2. **MongoDB healthcheck disabled**: The DHI runtime image has no shell. The MeshCentral healthcheck covers full stack health — if MongoDB is unreachable, MeshCentral will report unhealthy.
+2. **MongoDB has no auth**: Connection security relies on Docker network isolation — `mc-internal` is `internal: true` (no internet egress) and no port is bound to the host. Only the `meshcentral` container can reach it. Any tenant on the same Docker host with access to the `mc-internal` network would bypass this — keep the network exclusive to this compose project. If you want defense-in-depth, set `MONGO_INITDB_ROOT_USERNAME`/`MONGO_INITDB_ROOT_PASSWORD` and update `mongoDb` in `config.json` to `mongodb://user:pass@mongodb:27017/meshcentral?authSource=admin`.
 
 3. **First account registration**: `newAccounts` is set to `true` in the generated config to allow initial admin registration. After creating your account, set `"newAccounts": false` in `data/meshcentral-data/config.json` and restart to lock down registration.
 
