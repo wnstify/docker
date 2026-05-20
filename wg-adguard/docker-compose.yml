@@ -1,75 +1,191 @@
-  # ══════════════════════════════════════════════════════════════════════════════
-  # ADGUARD HOME (DNS & AdBlock)
-  # Internal IP: 10.0.0.100
-  # ══════════════════════════════════════════════════════════════════════════════
+# WireGuard + AdGuard Home — Hardened Docker Compose
+# Self-hosted VPN with network-wide ad blocking. Clients connect to wg-easy,
+# get DNS pointed at AdGuard, and browse with ads blocked from any network.
+#
+# Architecture (2 services on a shared bridge with static IPs):
+#   - adguard  — adguard/adguardhome (DNS + filter) on 10.0.0.100
+#   - wg-easy  — ghcr.io/wg-easy/wg-easy (WireGuard server) on 10.0.0.200
+#
+#   VPN clients receive IPs from 10.8.0.0/24 (a separate subnet from the
+#   docker network) and use AdGuard at 10.0.0.100 for DNS.
+#
+# Security baseline (verified by test, May 2026):
+#   - cap_drop: ALL with the minimum cap_add needed for each role:
+#       * adguard: NET_BIND_SERVICE (binds 53 + 80 inside container) +
+#                  DAC_OVERRIDE (root-in-container writes to /opt/adguardhome
+#                  subdirs owned by `nobody`; AdGuard refuses to run non-root
+#                  on first launch — the "must run as administrator" error)
+#       * wg-easy: NET_ADMIN (create wg0 tunnel + routing)
+#                + SYS_MODULE (load wireguard + iptables NAT modules if the
+#                  host hasn't pre-loaded them; the /lib/modules:ro mount
+#                  points the container at the host's kernel modules)
+#                + NET_RAW (iptables-legacy NAT table initialization)
+#   - security_opt: no-new-privileges; ipc: private on both containers
+#   - tmpfs for ephemeral writes; deploy.resources limits incl. pids
+#   - 127.0.0.1 port binding on both web UIs — reverse proxy in front for TLS
+#   - WireGuard UDP listen port (51820) intentionally exposed on all
+#     interfaces — clients connect to it from the public internet
+#   - WG_HOST and PASSWORD_HASH live in .env, not in this compose (so they
+#     don't end up in git or in the repo's commit history)
+#
+# Pre-deploy:
+#   - The host kernel needs the WireGuard module available. Either it's
+#     built in (CONFIG_WIREGUARD=y) or you have it as a loadable module
+#     (CONFIG_WIREGUARD=m). The /lib/modules:ro mount lets wg-easy load
+#     it inside the container. For minimum host setup:
+#       sudo modprobe wireguard
+#       echo wireguard | sudo tee /etc/modules-load.d/wireguard.conf
+#   - iptables-legacy NAT modules also need to be available. Same idea —
+#     either pre-loaded on the host, or wg-easy loads them via SYS_MODULE.
+#
+# Setup:
+#   cp .env.example .env  &&  set WG_HOST + PASSWORD_HASH
+#   sudo modprobe wireguard iptable_nat   # one-time, see Pre-deploy above
+#   docker compose up -d
+#   # AdGuard initial setup: http://127.0.0.1:3000  (one-time wizard)
+#   # WG-Easy:               http://127.0.0.1:51821
+
+name: wg-adguard
+
 services:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ADGUARD HOME — DNS resolver + filter (for VPN clients)
+  # ═══════════════════════════════════════════════════════════════════════════
+
   adguard:
-    image: adguard/adguardhome:v0.107.72
-    container_name: adguard_home
+    image: adguard/adguardhome:v0.107.75
+    container_name: adguard-home
     restart: unless-stopped
     networks:
       vpn_net:
         ipv4_address: 10.0.0.100
     environment:
-      - PUID=1000   # Change if your user ID is different
-      - PGID=1000   # Change if your group ID is different
-      - TZ=Europe/Bratislava
+      TZ: ${TZ:-Europe/Bratislava}
     volumes:
-      - ${PWD}/config:/opt/adguardhome/conf/
+      - ./config:/opt/adguardhome/conf
     ports:
-#      - "53:53/tcp"
-#      - "53:53/udp"
-      # Web UI bound to localhost for Pangolin Proxy
-      - "127.0.0.1:8080:80/tcp"
-      - "127.0.0.1:3000:3000/tcp"
+      # Web UI bound to localhost — front with a reverse proxy for public TLS.
+      # 80 = main dashboard once set up, 3000 = initial setup wizard.
+      - "127.0.0.1:${ADGUARD_UI_PORT:-8080}:80/tcp"
+      - "127.0.0.1:${ADGUARD_SETUP_PORT:-3000}:3000/tcp"
+      # DNS port (53) is intentionally NOT exposed to the host — clients
+      # reach AdGuard via the vpn_net Docker network at 10.0.0.100:53
+      # after they're inside the WireGuard tunnel.
+    cap_drop:
+      - ALL
     cap_add:
-      - NET_ADMIN
+      - NET_BIND_SERVICE  # binds 53 (DNS) + 80 (web UI) inside the container
+      - DAC_OVERRIDE      # root-in-container writes to /opt/adguardhome
+                          # subdirs that the image ships owned by `nobody`
     security_opt:
       - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 128m
+          cpus: "0.1"
+    healthcheck:
+      # /control/status is unauthenticated and returns 200 once AdGuard is up.
+      # Until the setup wizard runs, only port 3000 responds; afterwards it
+      # moves to port 80. Probe both to cover both states.
+      test: ["CMD-SHELL", "wget -qO- --spider http://127.0.0.1:3000 >/dev/null 2>&1 || wget -qO- --spider http://127.0.0.1:80 >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
-  # ══════════════════════════════════════════════════════════════════════════════
-  # WG-EASY (VPN Server)
-  # Internal IP: 10.0.0.200
-  # ══════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WG-EASY — WireGuard server + web management UI
+  # ═══════════════════════════════════════════════════════════════════════════
+
   wg-easy:
-    image: ghcr.io/wg-easy/wg-easy:15.2.2
+    image: ghcr.io/wg-easy/wg-easy:15.3.0
     container_name: wg-easy
     restart: unless-stopped
     depends_on:
-      - adguard
+      adguard:
+        condition: service_healthy
     networks:
       vpn_net:
         ipv4_address: 10.0.0.200
     environment:
-      - WG_HOST=37.9.170.96
-      - PASSWORD_HASH=
-      
-      # ⚠️ VPN Tunnel IPs (Clients get 10.8.0.2, 10.8.0.3, etc.)
-      # This MUST be different from the Docker network (10.0.0.x)
-      - WG_DEFAULT_ADDRESS=10.8.0.x
-      
-      # Point clients to AdGuard's new static IP
-      - WG_DEFAULT_DNS=10.0.0.100
-      
-      - WG_ALLOWED_IPS=0.0.0.0/0, ::/0
+      # --- Public reach (REQUIRED, set in .env) ---------------------------
+      # Public IP or DNS name VPN clients dial in to.
+      WG_HOST: ${WG_HOST:?public hostname or IP required}
+      # Bcrypt-hashed admin password for the web UI. Generate with the
+      # one-liner in .env.example; remember to double-escape `$` as `$$`.
+      PASSWORD_HASH: ${PASSWORD_HASH:?bcrypt password hash required}
+      # --- VPN client subnet ---------------------------------------------
+      # NOTE: must NOT overlap with the docker `vpn_net` subnet above (10.0.0.x).
+      WG_DEFAULT_ADDRESS: ${WG_DEFAULT_ADDRESS:-10.8.0.x}
+      WG_DEFAULT_DNS: ${WG_DEFAULT_DNS:-10.0.0.100}
+      WG_ALLOWED_IPS: ${WG_ALLOWED_IPS:-0.0.0.0/0, ::/0}
     volumes:
-      - ${PWD}/wg-easy:/etc/wireguard
+      - ./wg-easy:/etc/wireguard
+      # Lets wg-easy load WireGuard + iptables NAT kernel modules from the
+      # host if they're not already loaded. Required alongside SYS_MODULE.
+      - /lib/modules:/lib/modules:ro
     ports:
-      - "51820:51820/udp"           # Public VPN port
-      - "127.0.0.1:51821:51821/tcp" # Web UI bound to localhost for Pangolin
+      # Public UDP for VPN clients. Forward this in your router/firewall.
+      - "${WG_PORT:-51820}:51820/udp"
+      # Web UI bound to localhost — front with a reverse proxy for public TLS.
+      - "127.0.0.1:${WG_UI_PORT:-51821}:51821/tcp"
+    cap_drop:
+      - ALL
     cap_add:
+      # Create wg0 tunnel interface, modify routing tables.
       - NET_ADMIN
+      # Load kernel modules (wireguard, iptable_nat) if the host doesn't
+      # have them pre-loaded. Combined with /lib/modules:ro above.
       - SYS_MODULE
+      # iptables-legacy needs NET_RAW to initialize the nat table; without
+      # it you get "can't initialize iptables table 'nat': Permission denied".
+      - NET_RAW
     sysctls:
+      # IP forwarding so packets traverse wg0 -> eth0.
       - net.ipv4.ip_forward=1
+      # Required by WireGuard for correct fwmark routing.
       - net.ipv4.conf.all.src_valid_mark=1
     security_opt:
       - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 64m
+          cpus: "0.1"
+    healthcheck:
+      # WG-Easy serves the web UI on 51821 and 302-redirects unauthenticated
+      # requests to /login. Any non-error HTTP response confirms the
+      # backend is live.
+      test: ["CMD-SHELL", "wget -qO- --spider http://127.0.0.1:51821/ >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-# ══════════════════════════════════════════════════════════════════════════════
-# NETWORK CONFIGURATION
-# ══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORK
+# ═══════════════════════════════════════════════════════════════════════════
+
 networks:
+  # Shared bridge with static IPs so AdGuard and WG-Easy can find each
+  # other by predictable addresses. VPN clients (10.8.0.x) reach AdGuard
+  # at 10.0.0.100 once they're inside the tunnel.
   vpn_net:
     driver: bridge
     ipam:

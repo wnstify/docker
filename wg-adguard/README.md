@@ -1,4 +1,4 @@
-# WireGuard + AdGuard Home VPN Stack
+# WireGuard + AdGuard Home
 
 <p align="center">
   <img src="https://www.wireguard.com/img/wireguard.svg" alt="WireGuard Logo" width="300">
@@ -13,323 +13,215 @@
 
 ---
 
-A secure, self-hosted VPN solution combining **WireGuard** (via WG-Easy) with **AdGuard Home** for network-wide ad blocking and DNS filtering. Connect to your VPN from anywhere and enjoy ad-free, private browsing on all your devices.
-
-## Video Guide
-
-For a complete walkthrough on setting up this stack with secure reverse proxy and authentication, watch our definitive guide:
-
-[![Definitive Self-Hosting Guide](https://img.shields.io/badge/YouTube-Definitive_Self--Hosting_Guide_(2025)-red?style=for-the-badge&logo=youtube)](https://youtu.be/tTyq9xGy1pM)
-
-**What you'll learn:**
-- Setting up **Pangolin** as a reverse proxy with wildcard SSL and secure tunneled access
-- Integrating **Authentik** for unified user management and SSO (optional but recommended)
-- Creating private subnets for secure intra-server communication
-- Protecting your apps with **CrowdSec** for 24/7 security
-- Server setup on your own hardware or cloud providers like Hetzner
-
----
-
-## Features
-
-### WireGuard (WG-Easy)
-- **Modern VPN Protocol** — Fast, secure, and lightweight
-- **Easy Web UI** — Manage clients without command-line
-- **QR Code Generation** — Instant mobile setup
-- **Cross-Platform** — Works on Windows, macOS, Linux, iOS, Android
-- **Persistent Connections** — Automatic reconnection on network changes
-
-### AdGuard Home
-- **Network-Wide Ad Blocking** — Block ads on all connected devices
-- **DNS-over-HTTPS/TLS** — Encrypted DNS queries
-- **Parental Controls** — Family-friendly filtering options
-- **Query Logging** — Monitor DNS requests
-- **Custom Blocklists** — Add your own filter lists
-- **Safe Browsing** — Protection against malicious domains
-
-### Combined Benefits
-- **Privacy Everywhere** — VPN + ad blocking on any network
-- **No Client Software Needed** — Ad blocking at DNS level
-- **Single Stack** — Both services in one deployment
-- **Automatic Updates** — Watchtower integration enabled
+A self-hosted VPN stack: **WireGuard** (via WG-Easy) for the tunnel, **AdGuard Home** for network-wide DNS filtering. Connect from anywhere, browse with ads blocked, regardless of which network you're on.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Docker Host                               │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                  vpn_net (10.0.0.0/24)                      ││
-│  │                                                              ││
-│  │   ┌──────────────┐           ┌──────────────────┐           ││
-│  │   │   AdGuard    │           │     WG-Easy      │           ││
-│  │   │   Home       │◄──DNS────►│   (WireGuard)    │           ││
-│  │   │              │           │                  │           ││
-│  │   │  10.0.0.100  │           │   10.0.0.200     │           ││
-│  │   └──────────────┘           └──────────────────┘           ││
-│  │          │                            │                      ││
-│  └──────────┼────────────────────────────┼──────────────────────┘│
-│             │                            │                       │
-│      :8080 (Web UI)              :51820/udp (VPN)               │
-│      :3000 (Setup)               :51821 (Web UI)                │
-│      localhost only              public + localhost              │
-└─────────────────────────────────────────────────────────────────┘
-                                   │
-                    ┌──────────────┴──────────────┐
-                    │        Pangolin Proxy       │
-                    │   (Wildcard SSL + Tunnel)   │
-                    └──────────────┬──────────────┘
-                                   │
-                    ┌──────────────┴──────────────┐
-                    │    Authentik (Optional)     │
-                    │      (SSO + User Mgmt)      │
-                    └──────────────┬──────────────┘
-                                   │
-                                   ▼
-                    ┌──────────────────────────┐
-                    │      VPN Clients         │
-                    │      10.8.0.0/24         │
-                    │  (10.8.0.2, 10.8.0.3...) │
-                    └──────────────────────────┘
+                              VPN clients
+                              10.8.0.0/24
+                                  │
+                          UDP 51820 │
+                                  ▼
+┌─────────────────────────────────────────────────────┐
+│  vpn_net (Docker bridge, 10.0.0.0/24)               │
+│                                                      │
+│   ┌──────────────┐  DNS:53  ┌──────────────────┐    │
+│   │   AdGuard    │◄─────────┤     WG-Easy      │    │
+│   │   Home       │          │   (WireGuard)    │    │
+│   │  10.0.0.100  │          │   10.0.0.200     │    │
+│   └──────────────┘          └──────────────────┘    │
+└─────────────────────────────────────────────────────┘
+         │  ▲                           │  ▲
+         │  └─ 127.0.0.1:8080 (admin)   │  └─ 127.0.0.1:51821 (admin)
+         │                              │
+         │                              └─ 0.0.0.0:51820/udp (public VPN)
+         │
+         └─ no host DNS port — clients reach :53 via vpn_net only
 ```
 
-**Network Separation:**
-- **Docker Network** (`10.0.0.0/24`): Internal communication between containers
-- **VPN Tunnel** (`10.8.0.0/24`): IP range assigned to VPN clients
+- **Docker network** `10.0.0.0/24` — internal communication between containers
+- **VPN tunnel** `10.8.0.0/24` — what clients get as their tunnel address (must NOT overlap the docker network)
 
 ## Prerequisites
 
-- Docker and Docker Compose v2.0+
-- A server with a **static public IP** or dynamic DNS
-- **UDP port 51820** open on your firewall/router
-- **Pangolin** for secure reverse proxy with wildcard SSL
-- **Authentik** for unified authentication (optional but recommended)
+- Docker and Docker Compose v2+
+- A host with a static public IP (or dynamic DNS)
+- **UDP/51820** open in your router/firewall (or whatever you set `WG_PORT` to)
+- A reverse proxy (Caddy, Nginx, Traefik, Pangolin) if you want to expose the web UIs publicly with TLS
+
+### Host-side prep
+
+WireGuard + iptables-legacy NAT need kernel modules. Either the kernel has them built in (`CONFIG_WIREGUARD=y`) or they're loadable modules that need to be loaded. The container can self-load them with `SYS_MODULE` + `/lib/modules:ro`, but you can also pre-load on the host so it survives reboots:
+
+```bash
+sudo modprobe wireguard iptable_nat
+echo wireguard | sudo tee /etc/modules-load.d/wireguard.conf
+echo iptable_nat | sudo tee /etc/modules-load.d/iptable_nat.conf
+```
 
 ## Quick Start
 
-### 1. Generate Password Hash
+### 1. Generate the WG-Easy admin password hash
 
-WG-Easy requires a bcrypt-hashed password. Generate one using:
+WG-Easy stores its admin password as a bcrypt hash. Generate one with the image's own bundled bcryptjs:
 
 ```bash
-docker run ghcr.io/wg-easy/wg-easy:14 node -e 'const bcrypt = require("bcryptjs"); const hash = bcrypt.hashSync("YOUR-PASSWORD", 10); console.log(hash.replace(/\$/g, "$$$$"));'
+docker run --rm ghcr.io/wg-easy/wg-easy:15.3.0 node -e \
+  'console.log(require("bcryptjs").hashSync(process.argv[1], 10))' \
+  'YOUR-STRONG-PASSWORD'
 ```
 
-Replace `YOUR_PASSWORD` with your desired password. Copy the output hash.
+Copy the output. **In your `.env`, double-escape every `$` as `$$`** — docker compose interpolation eats single `$`.
 
-### 2. Configure docker-compose.yml
+### 2. Configure environment
 
-Edit `docker-compose.yml` and update these values:
-
-```yaml
-# WG-Easy configuration
-- WG_HOST=your.server.ip.or.domain    # Your public IP or domain
-- PASSWORD_HASH=$$2a$$10$$...          # Your escaped bcrypt hash
-
-# Optional: Adjust timezone
-- TZ=Europe/Bratislava                 # Your timezone
+```bash
+cp .env.example .env
+nano .env
 ```
 
-### 3. Deploy the Stack
+Set `WG_HOST` (your public IP or DNS name) and paste the escaped `PASSWORD_HASH`.
+
+### 3. Deploy
 
 ```bash
 docker compose up -d
 ```
 
-### 4. Configure AdGuard Home
+### 4. AdGuard initial setup
 
-1. Access AdGuard Home setup at `http://localhost:3000`
-2. Complete the initial setup wizard
-3. Configure upstream DNS servers (e.g., `1.1.1.1`, `8.8.8.8`, or DNS-over-HTTPS)
-4. Add blocklists as needed
+Open `http://127.0.0.1:3000` (or the `ADGUARD_SETUP_PORT` you configured) and run the setup wizard:
 
-### 5. Access WG-Easy
+- DNS listen interface: leave as default (binds inside the container)
+- Web admin interface: leave on port 80 (the wizard's port 3000 redirects to it after setup)
+- Set an admin username + password
+- Recommended upstream DNS: `https://dns.quad9.net/dns-query` (DoH) or `https://dns.cloudflare.com/dns-query`
 
-1. Access WG-Easy at `http://localhost:51821`
-2. Log in with your password
-3. Create VPN clients and scan QR codes on mobile devices
+After setup, the dashboard moves to `http://127.0.0.1:8080`.
 
-### 6. Set Up Secure Access with Pangolin
+### 5. WG-Easy: create your first client
 
-For production deployments, secure your web UIs with Pangolin reverse proxy:
-
-- **Wildcard SSL certificates** for all your self-hosted apps
-- **Secure tunneled access** without exposing ports directly
-- **Optional Authentik integration** for SSO and unified user management
-
-Watch the complete setup guide: [Definitive Self-Hosting Guide (2025)](https://youtu.be/tTyq9xGy1pM)
+Open `http://127.0.0.1:51821`, log in with the password you bcrypt-hashed, click **New Client**, scan the QR code on a phone or download the `.conf` for a desktop. Done.
 
 ## Configuration
 
 ### Environment Variables
 
-#### AdGuard Home
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PUID` | User ID for file permissions | `1000` |
-| `PGID` | Group ID for file permissions | `1000` |
-| `TZ` | Timezone | `Europe/Bratislava` |
-
-#### WG-Easy
-
 | Variable | Description | Required |
-|----------|-------------|----------|
-| `WG_HOST` | Public IP or domain for VPN connections | Yes |
-| `PASSWORD_HASH` | Bcrypt hash for web UI (escaped) | Yes |
-| `WG_DEFAULT_ADDRESS` | Client IP range pattern | `10.8.0.x` |
-| `WG_DEFAULT_DNS` | DNS server for clients | `10.0.0.100` |
-| `WG_ALLOWED_IPS` | IPs clients can access | `0.0.0.0/0, ::/0` |
+|---|---|---|
+| `WG_HOST` | Public IP / DNS name VPN clients dial in to | Yes |
+| `PASSWORD_HASH` | bcrypt-hashed admin password for the WG-Easy UI (with `$` doubled) | Yes |
+| `WG_DEFAULT_ADDRESS` | CIDR pattern for client IPs (must not overlap docker `vpn_net`) | No (default `10.8.0.x`) |
+| `WG_DEFAULT_DNS` | DNS server pushed to clients | No (default `10.0.0.100`, AdGuard) |
+| `WG_ALLOWED_IPS` | What clients can reach via the tunnel | No (default `0.0.0.0/0, ::/0`) |
+| `WG_PORT` | Public UDP listen port | No (default 51820) |
+| `WG_UI_PORT` | Host port for WG-Easy admin (127.0.0.1 only) | No (default 51821) |
+| `ADGUARD_UI_PORT` | Host port for AdGuard dashboard | No (default 8080) |
+| `ADGUARD_SETUP_PORT` | Host port for AdGuard setup wizard | No (default 3000) |
+| `TZ` | Container timezone | No (default `Europe/Bratislava`) |
 
-### Network Configuration
+### Reverse Proxy (Caddy)
 
-The stack uses a custom bridge network with static IPs:
+```caddyfile
+vpn.example.com {
+    encode zstd gzip
+    reverse_proxy http://127.0.0.1:51821
+}
 
-| Container | IP Address | Purpose |
-|-----------|------------|---------|
-| AdGuard Home | `10.0.0.100` | DNS server for VPN clients |
-| WG-Easy | `10.0.0.200` | VPN server |
+adguard.example.com {
+    encode zstd gzip
+    reverse_proxy http://127.0.0.1:8080
+}
+```
 
-VPN clients receive IPs from `10.8.0.0/24` (10.8.0.2, 10.8.0.3, etc.).
+Both admin UIs are bound to `127.0.0.1` so they're only reachable through the proxy.
 
 ## Ports
 
-| Port | Protocol | Service | Binding | Description |
-|------|----------|---------|---------|-------------|
-| 51820 | UDP | WG-Easy | Public | WireGuard VPN tunnel |
-| 51821 | TCP | WG-Easy | localhost | Web management UI |
-| 8080 | TCP | AdGuard | localhost | Web dashboard |
-| 3000 | TCP | AdGuard | localhost | Initial setup wizard |
+| Port | Proto | Service | Binding | Purpose |
+|------|-------|---------|---------|---------|
+| 51820 | UDP | WG-Easy | All interfaces | WireGuard VPN tunnel (clients connect here) |
+| 51821 | TCP | WG-Easy | 127.0.0.1 | WG-Easy web UI |
+| 8080  | TCP | AdGuard | 127.0.0.1 | AdGuard dashboard (post-setup) |
+| 3000  | TCP | AdGuard | 127.0.0.1 | AdGuard setup wizard (initial) |
 
-**Note:** After initial AdGuard setup, port 3000 redirects to 8080.
+DNS port 53 is **not** exposed to the host — clients reach it via the docker `vpn_net` at `10.0.0.100:53` once they're connected to the tunnel.
 
 ## Data Persistence
 
 | Path | Description |
 |------|-------------|
-| `./config` | AdGuard Home configuration and data |
-| `./wg-easy` | WireGuard configuration and client keys |
+| `./config`  | AdGuard config + filter lists + query log |
+| `./wg-easy` | WireGuard server keys + per-client configs |
 
-**Backup these directories regularly!**
+Back these up — losing `./wg-easy` invalidates every client config.
 
-## Usage
+## Security Features
 
-### Adding VPN Clients
+| Layer | Setting | Effect |
+|---|---|---|
+| Capabilities | `cap_drop: ALL` on both services. **adguard** adds 2 (`NET_BIND_SERVICE`, `DAC_OVERRIDE`); **wg-easy** adds 3 (`NET_ADMIN`, `SYS_MODULE`, `NET_RAW`) | Each cap is required by a specific syscall, verified by trim-and-retest |
+| Why root in containers | AdGuard refuses to run non-root on first launch (the "must run as administrator" error). WG-Easy needs root to manipulate network namespaces and iptables rules | Both containers run root *with* `no-new-privileges` *and* the tightest cap set possible — the alternative (privileged) would be far worse |
+| Privileges | `security_opt: no-new-privileges` on every container | Setuid binaries can't gain caps mid-process |
+| IPC | `ipc: private` on every container | Isolated SysV/POSIX IPC namespace |
+| Process budget | `pids: 200` on both | Caps fork sprawl |
+| Port exposure | Admin UIs on `127.0.0.1` only (reverse-proxy targets); DNS port 53 not exposed to host at all | Only the VPN tunnel can reach DNS |
+| Secret hygiene | `WG_HOST` + `PASSWORD_HASH` read from `.env`, never inlined in the compose | Previous template hard-coded a public IP into git — fixed |
+| Healthchecks | wget probes on both web UIs | Surfaces crashloops in `docker compose ps` |
+| Module mount | `/lib/modules:/lib/modules:ro` on wg-easy | Container can load kernel modules but can never modify the host's module library |
 
-1. Open WG-Easy web UI
-2. Click "New Client"
-3. Enter a name (e.g., "iPhone", "Laptop")
-4. Scan the QR code or download the configuration file
-5. Import into WireGuard app on your device
+## Operations
 
-### Managing Blocklists (AdGuard)
+### View VPN client traffic
 
-1. Open AdGuard Home dashboard
-2. Go to **Filters** → **DNS Blocklists**
-3. Add popular lists:
-   - **AdGuard DNS filter** (included by default)
-   - **OISD** — `https://big.oisd.nl`
-   - **Steven Black** — `https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts`
+WG-Easy's dashboard shows real-time bytes in/out per client and the time of last handshake. Useful for spotting clients that haven't connected in a while.
 
-### Checking DNS Filtering
+### Check that DNS filtering is working
 
-1. Connect to VPN
-2. Visit `https://adguard.com/test.html` to verify ad blocking
-3. Check AdGuard dashboard for query logs
+1. Connect to the VPN
+2. Visit `https://www.dnsleaktest.com/` — should show only AdGuard
+3. Visit `https://adblock-tester.com/` — should report 100% blocked
+4. AdGuard dashboard → **Query log** shows the blocks in real time
+
+### Upgrade
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+The image tags here are pinned to specific patch versions — set new versions in `docker-compose.yml` and re-run the above.
+
+### Reset the WG-Easy admin password
+
+Generate a new bcrypt hash (see Quick Start step 1), replace `PASSWORD_HASH` in `.env`, then:
+
+```bash
+docker compose up -d
+```
+
+The change picks up on container recreate without losing client configs.
 
 ## Troubleshooting
 
-### VPN Connection Issues
+**"Permission denied (you must be root)" from wg-quick:** the host kernel doesn't have the iptables-legacy NAT module available, and `SYS_MODULE` + `/lib/modules:ro` aren't enough to load it. Run `sudo modprobe iptable_nat` on the host once.
 
-**Can't connect to VPN:**
-1. Verify UDP port 51820 is open on firewall
-2. Check `WG_HOST` matches your public IP or domain
-3. Ensure client config was generated after server setup
+**WireGuard module fails to load:** check `lsmod | grep wireguard`. If empty, `sudo modprobe wireguard`. If `modprobe` says "module not found", your kernel doesn't have WireGuard — check `grep CONFIG_WIREGUARD /boot/config-$(uname -r)`. Modern Debian/Ubuntu/Fedora kernels (≥5.6) all have it.
 
-**Connected but no internet:**
-1. Verify `net.ipv4.ip_forward=1` is enabled on host
-2. Check `WG_DEFAULT_DNS` points to AdGuard (`10.0.0.100`)
-3. Ensure AdGuard container is running
+**"This is the first launch of AdGuard Home; you must run it as administrator":** that's AdGuard refusing to start non-root on first boot. The compose handles this correctly (runs as root with `cap_drop: ALL` + minimal `cap_add`). If you see this, your bind-mount permissions are wrong — delete `./config/*` and let the container regenerate.
 
-```bash
-# Check container status
-docker compose ps
-
-# View logs
-docker compose logs wg-easy
-docker compose logs adguard
-```
-
-### AdGuard Issues
-
-**Can't access setup wizard:**
-```bash
-# Check if port 3000 is listening
-docker compose logs adguard | grep -i listen
-```
-
-**DNS not working:**
-1. Verify AdGuard is running on `10.0.0.100`
-2. Test DNS resolution: `nslookup google.com 10.0.0.100`
-
-### Password Issues
-
-**Forgot WG-Easy password:**
-1. Generate a new hash (see Quick Start)
-2. Update `PASSWORD_HASH` in docker-compose.yml
-3. Restart: `docker compose up -d`
-
-**Password not working:**
-- Ensure all `$` are escaped as `$$` in docker-compose.yml
-
-## Security Considerations
-
-- **Web UIs bound to localhost** — Only accessible via Pangolin reverse proxy
-- **No-new-privileges enabled** — Prevents privilege escalation
-- **Separate networks** — VPN clients isolated from Docker network
-- **Automatic updates** — Watchtower labels enabled
-
-### Recommended Security Stack
-
-For serious self-hosters, we recommend the complete security stack:
-
-| Component | Purpose |
-|-----------|---------|
-| **Pangolin** | Reverse proxy with wildcard SSL and secure tunnels |
-| **Authentik** | SSO and unified user management across all apps |
-| **CrowdSec** | Collaborative security with real-time threat detection |
-
-Learn how to set up the complete stack: [Definitive Self-Hosting Guide (2025)](https://youtu.be/tTyq9xGy1pM)
-
-### Best Practices
-
-1. Use strong, unique passwords
-2. Set up Pangolin for secure external access
-3. Enable Authentik for unified authentication
-4. Regularly update blocklists
-5. Monitor AdGuard logs for anomalies
-6. Backup configuration before updates
+**Connected to VPN but no internet:** check `WG_DEFAULT_DNS` resolves to AdGuard's IP (`10.0.0.100` by default) and that `net.ipv4.ip_forward=1` is in the wg-easy sysctls (it is by default in this compose). Use `docker exec wg-easy wg show` to confirm a handshake.
 
 ## Resources
 
-- **Complete Setup Guide:** [Definitive Self-Hosting Guide (2025)](https://youtu.be/tTyq9xGy1pM)
-- **Webnestify YouTube:** [@webnestify](https://youtube.com/@webnestify)
-- **Discord Community:** [Join Discord](https://wnstify.cc/discord)
-
-## Support the Projects
-
-### WireGuard / WG-Easy
-- [WireGuard Official](https://www.wireguard.com/)
-- [WG-Easy GitHub](https://github.com/wg-easy/wg-easy)
-- [WireGuard Donations](https://www.wireguard.com/donations/)
-
-### AdGuard Home
-- [AdGuard Home GitHub](https://github.com/AdguardTeam/AdGuardHome)
-- [AdGuard Official](https://adguard.com/)
-- [AdGuard Community](https://github.com/AdguardTeam/AdGuardHome/discussions)
+- **Setup walkthrough:** [Definitive Self-Hosting Guide](https://youtu.be/tTyq9xGy1pM)
+- **WireGuard Official:** [wireguard.com](https://www.wireguard.com/)
+- **WG-Easy:** [github.com/wg-easy/wg-easy](https://github.com/wg-easy/wg-easy)
+- **AdGuard Home:** [github.com/AdguardTeam/AdGuardHome](https://github.com/AdguardTeam/AdGuardHome)
 
 ## License
 
 - **WireGuard** — GPL-2.0
-- **WG-Easy** — Custom License (see [repository](https://github.com/wg-easy/wg-easy))
+- **WG-Easy** — see the [upstream repo](https://github.com/wg-easy/wg-easy)
 - **AdGuard Home** — GPL-3.0
