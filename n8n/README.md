@@ -138,6 +138,23 @@ This template ships with a hardened default configuration:
 > container, has internet via `n8n-front`). To allow outbound from the
 > runner anyway, drop `internal: true` on the `n8n-runners` network.
 
+> **Why `N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0`?**
+> n8n's broker defaults to `127.0.0.1`, which is only reachable inside
+> the n8n container. With the runner in a separate container, the bind
+> has to widen. `0.0.0.0` means *all interfaces of the n8n container* —
+> **not** all host interfaces. Three layers actually contain the broker:
+> 1. The `n8n-runners` network is created with `--internal`, so it has
+>    no route to the host or the internet.
+> 2. There is no `ports:` mapping for 5679, so the host kernel never
+>    sees that port — `iptables -L` won't show it, nothing from outside
+>    Docker can reach it.
+> 3. `N8N_RUNNERS_AUTH_TOKEN` authenticates every task RPC, so even a
+>    process that somehow ended up on the `n8n-runners` network couldn't
+>    dispatch work without the secret.
+>
+> The listen address inside the container is a routing concern; the
+> `--internal` network is the security boundary.
+
 > **Postgres image upgrade (optional):** swap `postgres:18.4` for
 > `dhi.io/postgres:18` (Docker Hardened Images) for a distroless base
 > with faster CVE patches. Requires a DHI subscription.

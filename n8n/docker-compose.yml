@@ -114,6 +114,11 @@ services:
       # --- Task runners (Code nodes execute in a separate sandbox) ---------
       # Runners are enabled by default in n8n 2.21+; no N8N_RUNNERS_ENABLED needed.
       N8N_RUNNERS_MODE: external
+      # 0.0.0.0 here means "all interfaces of the n8n container" — required so
+      # the runner in a separate container can reach the broker at n8n:5679.
+      # NOT exposed to the host (no `ports:` mapping for 5679) and the
+      # n8n-runners network is --internal, so the broker is reachable only
+      # by the runner. AUTH_TOKEN below is the authentication layer on top.
       N8N_RUNNERS_BROKER_LISTEN_ADDRESS: 0.0.0.0
       N8N_RUNNERS_AUTH_TOKEN: ${N8N_RUNNERS_AUTH_TOKEN}
       # --- Locale ----------------------------------------------------------
