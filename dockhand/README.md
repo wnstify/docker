@@ -44,8 +44,8 @@ PostgreSQL            Socket Proxy
 
 | Service | Image | Purpose |
 |---------|-------|---------|
-| **dockhand** | `fnsys/dockhand:latest` | Web UI, REST API, container management |
-| **postgresql** | `postgres:alpine` | Primary database |
+| **dockhand** | `fnsys/dockhand:v1.0.29` | Web UI, REST API, container management |
+| **postgresql** | `postgres:18.4-alpine3.23` | Primary database |
 | **socket-proxy** | `tecnativa/docker-socket-proxy:0.3` | Filtered Docker socket access |
 
 ### Network Segmentation

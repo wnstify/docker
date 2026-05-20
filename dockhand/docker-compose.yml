@@ -6,7 +6,7 @@ services:
   # POSTGRESQL DATABASE
   # ===========================================
   postgresql:
-    image: docker.io/library/postgres:alpine
+    image: docker.io/library/postgres:18.4-alpine3.23
     container_name: dockhand-postgresql
     hostname: postgresql
     restart: unless-stopped
@@ -114,7 +114,7 @@ services:
   # DOCKHAND SERVER
   # ===========================================
   dockhand:
-    image: fnsys/dockhand:latest
+    image: fnsys/dockhand:v1.0.29
     container_name: dockhand
     hostname: dockhand
     user: "1000:1000"
