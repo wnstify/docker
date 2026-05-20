@@ -1,51 +1,143 @@
+# Uptime Kuma — Hardened Docker Compose
+# Self-hosted monitoring (https://github.com/louislam/uptime-kuma) with an
+# external MariaDB backend.
+#
+# Security baseline:
+#   - cap_drop: ALL with the minimum caps re-added per service
+#   - security_opt: no-new-privileges; ipc: private
+#   - non-root long-running processes (MariaDB drops to mysql:mysql 999:999)
+#   - tmpfs for ephemeral writes, deploy.resources limits incl. pids
+#   - DB network is internal-only (create with --internal — see README)
+#   - Healthchecks gate startup via depends_on.condition: service_healthy
+#   - Healthchecks use built-in scripts only — no credentials on the cmdline
+#
+# Setup:
+#   cp .env.example .env  &&  edit secrets
+#   docker network create kuma
+#   docker network create --internal kuma-db
+#   docker compose up -d
+
+name: uptime-kuma
+
 services:
-  uptime-kuma:
-    image: louislam/uptime-kuma:2.1.3
-    container_name: uptime-kuma
-    ports:
-      - 127.0.0.1:3008:3001  # <Host Port>:<Container Port>
-    restart: always
-    volumes:
-      - ${PWD}/data:/app/data
+
+  # MariaDB — Docker Official Image (replaces lscr.io/linuxserver/mariadb).
+  # Smaller surface (no s6-overlay), faster upstream patch flow, native
+  # non-root user creation via MARIADB_USER/MARIADB_PASSWORD.
+  mariadb:
+    image: docker.io/mariadb:11.8.6
+    container_name: uptime-kuma-mariadb
+    restart: unless-stopped
     environment:
-      - PUID=1000
-      - PGID=1000
-      - UPTIME_KUMA_DB_TYPE=mariadb
-      - UPTIME_KUMA_DB_HOSTNAME=mariadb
-      - UPTIME_KUMA_DB_PORT=3306
-      - UPTIME_KUMA_DB_NAME=${UPTIME_KUMA_DB_NAME}
-      - UPTIME_KUMA_DB_USERNAME=${UPTIME_KUMA_DB_USERNAME}
-      - UPTIME_KUMA_DB_PASSWORD=${UPTIME_KUMA_DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${UPTIME_KUMA_DB_NAME}
+      MARIADB_USER: ${UPTIME_KUMA_DB_USERNAME}
+      MARIADB_PASSWORD: ${UPTIME_KUMA_DB_PASSWORD}
+      MARIADB_AUTO_UPGRADE: "1"
+      TZ: ${TZ:-Europe/Bratislava}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-name-resolve
+      - --max-connections=100
+    volumes:
+      - ${PWD}/db:/var/lib/mysql
+    networks:
+      - kuma-db
+    cap_drop:
+      - ALL
+    cap_add:
+      # Minimum caps required by the entrypoint for first-run chown +
+      # privilege drop to mysql:mysql. No NET_* or SYS_* caps.
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+      - FOWNER
     security_opt:
       - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+      - /run/mysqld:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 256m
+          cpus: "0.25"
+    healthcheck:
+      # Built-in script shipped with the official image. Uses the local
+      # unix socket — no credentials on the command line.
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+
+  uptime-kuma:
+    image: docker.io/louislam/uptime-kuma:2.3.2
+    container_name: uptime-kuma
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3008:3001"  # localhost only — front with a reverse proxy
+    environment:
+      UPTIME_KUMA_DB_TYPE: mariadb
+      UPTIME_KUMA_DB_HOSTNAME: mariadb
+      UPTIME_KUMA_DB_PORT: 3306
+      UPTIME_KUMA_DB_NAME: ${UPTIME_KUMA_DB_NAME}
+      UPTIME_KUMA_DB_USERNAME: ${UPTIME_KUMA_DB_USERNAME}
+      UPTIME_KUMA_DB_PASSWORD: ${UPTIME_KUMA_DB_PASSWORD}
+      TZ: ${TZ:-Europe/Bratislava}
+    volumes:
+      - ${PWD}/data:/app/data
     networks:
       - kuma
       - kuma-db
-  mariadb:
-    image: lscr.io/linuxserver/mariadb:11.4.9
-    container_name: mariadb
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Bratislava
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${UPTIME_KUMA_DB_NAME}
-      - MYSQL_USER=${UPTIME_KUMA_DB_USERNAME}
-      - MYSQL_PASSWORD=${UPTIME_KUMA_DB_PASSWORD}
-    volumes:
-      - ${PWD}/config:/config
+    cap_drop:
+      - ALL
+    cap_add:
+      # Raw sockets for ICMP ping monitor. Scoped to this container only;
+      # no_new_privileges still applies. Remove if you don't use ping checks.
+      - NET_RAW
     security_opt:
       - no-new-privileges:true
-    restart: unless-stopped
+    ipc: private
+    tmpfs:
+      - /tmp:size=128m
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 128m
+          cpus: "0.1"
+    healthcheck:
+      # Built-in script at /app/extra/healthcheck — node-based, hits
+      # 127.0.0.1:3001 inside the container. No external probe, no creds.
+      test: ["CMD", "extra/healthcheck"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 180s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    networks:
-      - kuma-db
+
 networks:
+  # Frontend: reverse proxy reaches uptime-kuma here (or via 127.0.0.1:3008).
   kuma:
     external: true
+  # Backend: kuma <-> mariadb only. Create with --internal so MariaDB has
+  # no internet egress (see README).
   kuma-db:
     external: true
-

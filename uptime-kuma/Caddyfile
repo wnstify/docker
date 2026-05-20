@@ -1,0 +1,8 @@
+# Reverse proxy for Uptime Kuma — Caddy example.
+# Replace status.example.com with your domain. Caddy auto-provisions TLS
+# and auto-handles the WebSocket upgrade Uptime Kuma needs for live updates.
+
+status.example.com {
+    encode zstd gzip
+    reverse_proxy http://127.0.0.1:3008
+}

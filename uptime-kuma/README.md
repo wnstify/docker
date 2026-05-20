@@ -36,8 +36,11 @@
 
 ```bash
 docker network create kuma
-docker network create kuma-db
+docker network create --internal kuma-db
 ```
+
+The `--internal` flag on `kuma-db` blocks all internet egress for MariaDB — it
+only needs to talk to the kuma container, never the outside world.
 
 ### 2. Configure Environment
 
@@ -49,10 +52,11 @@ nano .env
 ```
 
 Set these values:
-- `UPTIME_KUMA_DB_NAME` — Database name
-- `UPTIME_KUMA_DB_USERNAME` — Database username
-- `UPTIME_KUMA_DB_PASSWORD` — Database password
-- `MYSQL_ROOT_PASSWORD` — MariaDB root password
+- `MARIADB_ROOT_PASSWORD` — MariaDB root password
+- `UPTIME_KUMA_DB_NAME` — Application database name
+- `UPTIME_KUMA_DB_USERNAME` — Non-root DB user (created automatically by the MariaDB image)
+- `UPTIME_KUMA_DB_PASSWORD` — Non-root DB user password
+- `TZ` — Container timezone (optional, defaults to `Europe/Bratislava`)
 
 ### 3. Deploy
 
@@ -72,12 +76,11 @@ docker compose up -d
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `UPTIME_KUMA_DB_NAME` | Database name | Yes |
-| `UPTIME_KUMA_DB_USERNAME` | Database username | Yes |
-| `UPTIME_KUMA_DB_PASSWORD` | Database password | Yes |
-| `MYSQL_ROOT_PASSWORD` | MariaDB root password | Yes |
-| `PUID` | User ID for file permissions | No |
-| `PGID` | Group ID for file permissions | No |
+| `MARIADB_ROOT_PASSWORD` | MariaDB root password | Yes |
+| `UPTIME_KUMA_DB_NAME` | Application database name | Yes |
+| `UPTIME_KUMA_DB_USERNAME` | Non-root DB user (least privilege) | Yes |
+| `UPTIME_KUMA_DB_PASSWORD` | Non-root DB user password | Yes |
+| `TZ` | Container timezone | No (default: `Europe/Bratislava`) |
 
 ### Reverse Proxy (Caddy)
 
@@ -97,8 +100,40 @@ status.example.com {
 
 | Path | Description |
 |------|-------------|
-| `./data` | Uptime Kuma data (SQLite mode) |
-| `./config` | MariaDB configuration |
+| `./data` | Uptime Kuma application data |
+| `./db` | MariaDB data directory (`/var/lib/mysql` inside the container) |
+
+> **Migrating from a previous LSIO MariaDB setup?**
+> The old image stored data under `./config` in LSIO's layout, which isn't readable by the official MariaDB image. Either dump first and re-import:
+> ```bash
+> docker exec mariadb mysqldump -u root -p"$MARIADB_ROOT_PASSWORD" \
+>   "$UPTIME_KUMA_DB_NAME" > uptime-kuma.sql
+> # ... swap stacks, then on the new MariaDB:
+> docker exec -i uptime-kuma-mariadb mysql -u root -p"$MARIADB_ROOT_PASSWORD" \
+>   "$UPTIME_KUMA_DB_NAME" < uptime-kuma.sql
+> ```
+> ...or start fresh if you don't need historical monitor data.
+
+## Security Features
+
+This template ships with a hardened default configuration:
+
+| Layer | Setting | Effect |
+|---|---|---|
+| Capabilities | `cap_drop: ALL` on both containers, minimal `cap_add` | No SYS_ADMIN, NET_ADMIN, etc. |
+| Privileges | `security_opt: no-new-privileges` | Setuid binaries cannot gain caps |
+| IPC | `ipc: private` | Isolated SysV/POSIX IPC namespace |
+| Process budget | `pids` limits via `deploy.resources` | Fork-bomb resistance |
+| Memory / CPU | `memory` & `cpus` limits | One service can't starve the others |
+| Network | `kuma-db` created with `--internal` | MariaDB has no internet egress |
+| Port exposure | `127.0.0.1:3008:3001` | Only the reverse proxy can reach kuma |
+| DB user | `MARIADB_USER` / `MARIADB_PASSWORD` (non-root) | App connects with least privilege |
+| Healthchecks | Built-in image scripts only | No credentials on the command line |
+| Ephemeral writes | `tmpfs` for `/tmp` and `/run/mysqld` | Nothing survives container restart |
+
+> **ICMP ping monitor:** the kuma container has `cap_add: NET_RAW` so the
+> built-in ping monitor works. If you only use HTTP/TCP/DNS/Push monitors,
+> remove that cap for a stricter baseline.
 
 ## Monitor Types
 
