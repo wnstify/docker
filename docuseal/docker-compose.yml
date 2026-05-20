@@ -1,66 +1,161 @@
+# DocuSeal — Hardened Docker Compose (app + postgres)
+# Open-source document signing platform: https://www.docuseal.com/
+#
+# Architecture (2 services):
+#   - postgres  — official postgres:18.4 (internal-only net, no internet)
+#   - app       — docuseal/docuseal:3.0.0 (free open-source image, bundles
+#                 Puma + Sidekiq + Redis + PDF processing internally)
+#
+# Note on Gotenberg / Redis: as of DocuSeal 3.x both are bundled inside
+# the app image. The official upstream compose is also just app + postgres
+# — no external gotenberg or redis containers needed.
+#
+# Security baseline (verified by test, May 2026):
+#   - Both containers run with cap_drop: ALL and ZERO cap_add. Postgres
+#     runs as ${PUID}:${PGID}; the app image runs as root internally
+#     but with no caps + no-new-privileges that's effectively constrained.
+#   - security_opt: no-new-privileges; ipc: private
+#   - tmpfs for ephemeral writes; deploy.resources limits incl. pids
+#   - Two-network split: docuseal-front (external bridge — reverse-proxy
+#     reach + internet egress for SMTP / license / asset CDNs) and
+#     docuseal-db (--internal, no internet egress for postgres)
+#   - 127.0.0.1 port binding — reverse proxy in front for TLS
+#   - Healthchecks gate startup via depends_on; Rails /up endpoint for
+#     the app, pg_isready for postgres
+#   - Postgres uses SCRAM-SHA-256 password auth (stronger than default md5)
+#   - Non-root postgres user (least privilege) — app connects as
+#     POSTGRES_NON_ROOT_USER, never the postgres superuser
+#
+# Setup:
+#   cp .env.example .env  &&  fill secrets (openssl recipes in the file)
+#   docker network create docuseal-front
+#   docker network create --internal docuseal-db
+#   mkdir -p data/{app,db}
+#   docker compose up -d
+
+name: docuseal
+
 services:
-  docuseal-app:
-    depends_on:
-      docuseal-postgres:
-        condition: service_healthy
-    image: GET-FROM-DOCUSEAL-DASHBOARD
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DATABASE
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  postgres:
+    image: postgres:18.4
+    container_name: docuseal-postgres
     restart: unless-stopped
-    ports:
-      - 127.0.0.1:3000:3000
-    volumes:
-      - ${PWD}/data:/data/docuseal
+    user: "${PUID:-1000}:${PGID:-1000}"
     environment:
-      - FORCE_SSL=https://your-domain
-      - DATABASE_URL=postgresql://${POSTGRES_NON_ROOT_USER}:${POSTGRES_NON_ROOT_PASSWORD}@docuseal-postgres:5432/${POSTGRES_DB}
-      - GOTENBERG_URLS=http://gotenberg:3000
-      - SECRET_KEY_BASE=
-      - SMTP_USERNAME=
-      - SMTP_PASSWORD=
-      - SMTP_AUTHENTICATION=
-      - SMTP_FROM=
-      - SMTP_ENABLE_STARTTLS_AUTO=true
-      - SMTP_PORT=587
-      - SMTP_DOMAIN=
+      POSTGRES_USER: ${POSTGRES_USER:?postgres root user required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?postgres root password required}
+      POSTGRES_DB: ${POSTGRES_DB:-docuseal}
+      POSTGRES_NON_ROOT_USER: ${POSTGRES_NON_ROOT_USER:?app db user required}
+      POSTGRES_NON_ROOT_PASSWORD: ${POSTGRES_NON_ROOT_PASSWORD:?app db password required}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      # Postgres 18 changed its default data dir; pin it back so users
+      # upgrading from postgres:17 don't need a migration.
+      PGDATA: /var/lib/postgresql/data
+      TZ: ${TZ:-Europe/Bratislava}
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+      - ./init-data.sh:/docker-entrypoint-initdb.d/init-data.sh:ro
     networks:
-      - docuseal
       - docuseal-db
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
-
-  docuseal-postgres:
-    image: postgres:17
-    restart: unless-stopped
-    environment:
-      - POSTGRES_USER
-      - POSTGRES_PASSWORD
-      - POSTGRES_DB
-      - POSTGRES_NON_ROOT_USER
-      - POSTGRES_NON_ROOT_PASSWORD
-      - PUID=1000
-      - PGID=1000
-    volumes:
-      - ${PWD}/db_storage:/var/lib/postgresql/data
-      - ${PWD}/init-data.sh:/docker-entrypoint-initdb.d/init-data.sh
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+      - /var/run/postgresql:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 256m
+          cpus: "0.25"
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB:-docuseal}"]
       interval: 5s
       timeout: 5s
       retries: 10
-    networks:
-      - docuseal-db
-    security_opt:
-      - no-new-privileges:true
+      start_period: 30s
 
-  docuseal-gotenberg:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # APPLICATION (Rails + Sidekiq + bundled Redis + bundled PDF processing)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  app:
+    image: docuseal/docuseal:3.0.0
+    container_name: docuseal-app
     restart: unless-stopped
-    image: gotenberg/gotenberg:8.30.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # localhost-only — front with a reverse proxy for public TLS.
+      - "127.0.0.1:${DOCUSEAL_PORT:-3000}:3000"
+    environment:
+      # App connects as the NON-root user (created by init-data.sh on
+      # first DB init). Principle of least privilege — app never has
+      # postgres superuser.
+      DATABASE_URL: postgresql://${POSTGRES_NON_ROOT_USER}:${POSTGRES_NON_ROOT_PASSWORD}@postgres:5432/${POSTGRES_DB:-docuseal}
+      # CRITICAL: Rails secret_key_base — signs session cookies, CSRF
+      # tokens, and other security-sensitive values. Losing this
+      # invalidates all sessions; leaking it lets attackers forge them.
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?secret key base required}
+      # Public URL — used to redirect plain HTTP to HTTPS and set the
+      # canonical host. Must match your reverse proxy.
+      FORCE_SSL: ${FORCE_SSL}
+      TZ: ${TZ:-Europe/Bratislava}
+    # env_file pulls in optional SMTP_* without forcing them to be set.
+    env_file:
+      - .env
+    volumes:
+      - ./data/app:/data/docuseal
     networks:
-      - docuseal
+      - docuseal-front
+      - docuseal-db
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=256m
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+          pids: 500
+        reservations:
+          memory: 512m
+          cpus: "0.25"
+    healthcheck:
+      # Rails built-in /up health endpoint (Rails::HealthController).
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/up"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ═══════════════════════════════════════════════════════════════════════════
 
 networks:
-  docuseal:
+  # External-facing: reverse proxy reaches DocuSeal via 127.0.0.1 port
+  # binding; also gives the app internet egress for SMTP / public asset
+  # CDNs / license validation.
+  docuseal-front:
     external: true
+  # Internal: postgres only — no internet egress, no host port.
   docuseal-db:
     external: true
