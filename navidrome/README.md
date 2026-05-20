@@ -13,7 +13,7 @@
 
 ---
 
-[Navidrome](https://www.navidrome.org/) is a modern, open-source music server and streamer. Compatible with Subsonic/Airsonic clients, it lets you enjoy your music collection from anywhere.
+[Navidrome](https://www.navidrome.org/) is a modern, open-source music server and streamer. Subsonic/Airsonic-compatible, so it works with dozens of mobile apps.
 
 ## Features
 
@@ -28,17 +28,17 @@
 ## Prerequisites
 
 - Docker and Docker Compose
-- External Docker network
-- Reverse proxy (Caddy, Nginx, Traefik)
-- Music library accessible to the container
+- One external Docker network (`navidrome-front`)
+- Reverse proxy (Caddy, Nginx, Traefik) for public TLS
+- A music library on the host, readable by your UID
 
 ## Quick Start
 
-### 1. Prepare Music Directory
+### 1. Prepare Your Music Library
 
-Ensure your music directory exists and is organized:
+Make sure your music folder is organized and readable by `${PUID}:${PGID}`:
 
-```bash
+```
 /path/to/your/music/
 ├── Artist 1/
 │   ├── Album 1/
@@ -47,43 +47,61 @@ Ensure your music directory exists and is organized:
     └── Album 1/
 ```
 
-### 2. Update Docker Compose
-
-Edit `docker-compose.yml`:
-- Replace `your-network` with your Docker network name
-- Update `/path/to/your/music/folder` to your music directory
-
-### 3. Deploy
+### 2. Create Docker Network
 
 ```bash
+docker network create navidrome-front
+```
+
+### 3. Configure Environment
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+The only **required** value is `MUSIC_DIR` — the absolute path to your music library on the host. Everything else has sensible defaults.
+
+Optional: fill in `ND_LASTFM_*` or `ND_SPOTIFY_*` for richer artist/album metadata.
+
+### 4. Deploy
+
+```bash
+mkdir -p data
 docker compose up -d
 ```
 
-### 4. Initial Setup
+First boot scans the music library and reports healthy via `/ping`.
 
-1. Access Navidrome at `http://your-server:4533`
-2. Create an admin account on first login
-3. Wait for the initial music scan to complete
+### 5. Initial Setup
+
+Visit `https://music.example.com` (or `http://localhost:4533` for local testing) and create the admin account on first login.
 
 ## Configuration
 
 ### Environment Variables
 
-Uncomment and configure in `docker-compose.yml`:
+| Variable | Description | Required |
+|---|---|---|
+| `MUSIC_DIR` | Absolute path to your music library on the host | Yes |
+| `NAVIDROME_PORT` | Host port (127.0.0.1 only) | No (default 4533) |
+| `ND_LOGLEVEL` | Log verbosity (`debug`, `info`, `warn`, `error`) | No (default `info`) |
+| `ND_SCANSCHEDULE` | Music scan schedule (cron-ish: `1h`, `@every 1h`, `30m`) | No (default `1h`) |
+| `ND_SESSIONTIMEOUT` | Session expiration | No (default `24h`) |
+| `ND_BASEURL` | Reverse-proxy subpath (e.g. `/music`) | No |
+| `ND_LASTFM_APIKEY` / `ND_LASTFM_SECRET` | Last.fm metadata enrichment | No |
+| `ND_SPOTIFY_ID` / `ND_SPOTIFY_SECRET` | Spotify metadata enrichment | No |
+| `PUID` / `PGID` | Host UID/GID for the container | No (default 1000) |
+| `TZ` | Container timezone | No (default `Europe/Bratislava`) |
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ND_SCANSCHEDULE` | Music scan schedule | `1h` |
-| `ND_LOGLEVEL` | Log verbosity | `info` |
-| `ND_SESSIONTIMEOUT` | Session timeout | `24h` |
-| `ND_BASEURL` | Base URL if using subpath | `/` |
-| `ND_ENABLETRANSCODINGCONFIG` | Allow transcoding config | `true` |
+Full [Navidrome configuration reference](https://www.navidrome.org/docs/usage/configuration-options/) lists every `ND_*` env var you can override.
 
 ### Reverse Proxy (Caddy)
 
-```
+```caddyfile
 music.example.com {
-    reverse_proxy http://localhost:4533
+    encode zstd gzip
+    reverse_proxy http://127.0.0.1:4533
 }
 ```
 
@@ -91,35 +109,39 @@ music.example.com {
 
 | Port | Service | Description |
 |------|---------|-------------|
-| 4533 | HTTP | Web interface |
+| 4533 | HTTP | Web interface + Subsonic API (reverse-proxy target) |
 
 ## Data Persistence
 
 | Path | Description |
 |------|-------------|
-| `./data` | Navidrome database and cache |
-| `/music` | Music library (read-only) |
+| `./data` | Navidrome SQLite database, cache, and transcoding cache |
+| `${MUSIC_DIR}` | Music library — **mounted read-only**, container cannot modify your files |
+
+## Security Features
+
+This template ships with a hardened default configuration:
+
+| Layer | Setting | Effect |
+|---|---|---|
+| Capabilities | `cap_drop: ALL`, **zero `cap_add`** (verified by test, May 2026) | No Linux capabilities granted |
+| Non-root | Runs as `${PUID}:${PGID}` (default 1000) | No root in the container |
+| Privileges | `security_opt: no-new-privileges` | Setuid binaries cannot gain caps |
+| IPC | `ipc: private` | Isolated SysV/POSIX IPC namespace |
+| Process budget | `pids: 200` | Caps fork sprawl |
+| Music library | Mounted `:ro` | Container can scan/stream but cannot rename/move/delete files |
+| Port exposure | `127.0.0.1` only on 4533 | Only the reverse proxy can reach Navidrome |
+| Healthcheck | Built-in `/ping` endpoint | Boot gated by simple HTTP check |
+| No DB tier | Embedded SQLite in `./data` | One container, one network, no extra secrets |
 
 ## Compatible Apps
 
 Navidrome works with Subsonic-compatible apps:
 
-- **Android**: DSub, Ultrasonic, Symfonium
-- **iOS**: play:Sub, Amperfy, SubStreamer
-- **Desktop**: Sublime Music, Sonixd
+- **Android**: DSub, Ultrasonic, Symfonium, Tempo
+- **iOS**: play:Sub, Amperfy, SubStreamer, Substreamer
+- **Desktop**: Sublime Music, Sonixd, Feishin
 - **Web**: Built-in web player
-
-## File Permissions
-
-The container runs as user `1000:1000`. Ensure your music folder is readable:
-
-```bash
-# Check current ownership
-ls -la /path/to/your/music
-
-# If needed, adjust permissions
-chmod -R 755 /path/to/your/music
-```
 
 ## Support the Project
 

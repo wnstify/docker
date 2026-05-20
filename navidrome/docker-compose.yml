@@ -1,20 +1,86 @@
+# Navidrome — Hardened Docker Compose (single service, no DB tier)
+# Self-hosted music streamer, Subsonic-compatible: https://www.navidrome.org/
+#
+# Architecture (1 service):
+#   - navidrome  — deluan/navidrome:0.61.2 (Go binary, embeds SQLite for
+#                  metadata; no external DB / cache / queue)
+#
+# Security baseline (verified by test, May 2026):
+#   - Runs as ${PUID}:${PGID} (no root). Port 4533 is unprivileged.
+#     cap_drop: ALL with ZERO cap_add — verified healthy under test.
+#   - security_opt: no-new-privileges; ipc: private
+#   - tmpfs for ephemeral writes; deploy.resources limits incl. pids
+#   - Music library mounted :ro — container cannot modify your files
+#   - 127.0.0.1 port binding — reverse proxy in front for TLS
+#   - Healthcheck via the built-in /ping endpoint
+#
+# Setup:
+#   cp .env.example .env  &&  set MUSIC_DIR to your music library
+#   docker network create navidrome-front
+#   mkdir -p data
+#   docker compose up -d
+
+name: navidrome
+
 services:
+
   navidrome:
-    image: deluan/navidrome:0.61.0
-    user: 1000:1000 # should be owner of volumes
-    ports:
-      - "127.0.0.1:4533:4533"
+    image: deluan/navidrome:0.61.2
+    container_name: navidrome
     restart: unless-stopped
-#    environment:
-      # Optional: put your config options customization here. Examples:
-      # ND_LOGLEVEL: debug
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      # localhost-only — front with a reverse proxy for public TLS.
+      - "127.0.0.1:${NAVIDROME_PORT:-4533}:4533"
+    environment:
+      ND_LOGLEVEL: ${ND_LOGLEVEL:-info}
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      ND_SCANSCHEDULE: ${ND_SCANSCHEDULE:-1h}
+      ND_SESSIONTIMEOUT: ${ND_SESSIONTIMEOUT:-24h}
+      TZ: ${TZ:-Europe/Bratislava}
+    # env_file picks up optional ND_LASTFM_*, ND_SPOTIFY_*, ND_BASEURL,
+    # etc. without forcing them to be set.
+    env_file:
+      - .env
     volumes:
-      - "${PWD}/data:/data"
-      - "/path/to/your/music/folder:/music:ro"
+      - ./data:/data
+      # Mount your music library read-only. The container can scan and
+      # stream, but cannot rename, move, or delete your files.
+      - ${MUSIC_DIR:?path to your music library required}:/music:ro
     networks:
-      - your-network # Change Value
+      - navidrome-front
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=128m
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 128m
+          cpus: "0.1"
+    healthcheck:
+      # Built-in /ping endpoint; returns 200 OK with a JSON status.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:4533/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ═══════════════════════════════════════════════════════════════════════════
+
 networks:
-    your-network: # Change Value
-      external: true
+  # External bridge: reverse proxy reaches navidrome via 127.0.0.1 port
+  # binding; also gives navidrome internet access for optional Last.fm /
+  # Spotify metadata enrichment (only if you set ND_LASTFM_* / ND_SPOTIFY_*).
+  navidrome-front:
+    external: true
