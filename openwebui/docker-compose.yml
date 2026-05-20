@@ -1,28 +1,89 @@
+# Open WebUI — Hardened Docker Compose (single service)
+# Self-hosted LLM front-end: https://github.com/open-webui/open-webui
+#
+# Architecture (1 service):
+#   - openwebui  — ghcr.io/open-webui/open-webui (Python/FastAPI app,
+#                  bundles SQLite for chat history + ChromaDB for RAG)
+#
+# Note on dependencies: Open WebUI itself needs nothing external. To
+# actually chat, point it at a model provider — either an Ollama
+# instance (on the host, in another container, or remote) or an
+# external API key (OpenAI, Anthropic, etc.). See README for examples.
+#
+# Security baseline (verified by test, May 2026):
+#   - Runs as ${PUID}:${PGID} (no root). Port 8080 is unprivileged.
+#     cap_drop: ALL with ZERO cap_add — verified healthy under test.
+#   - security_opt: no-new-privileges; ipc: private
+#   - tmpfs for ephemeral writes; deploy.resources limits incl. pids
+#   - 127.0.0.1 port binding — reverse proxy in front for TLS
+#   - Healthcheck via the built-in /health endpoint
+#   - WEBUI_SECRET_KEY pinned via .env so sessions survive restarts
+#
+# Setup:
+#   cp .env.example .env  &&  fill WEBUI_SECRET_KEY (openssl recipe in the file)
+#   docker network create openwebui-front
+#   mkdir -p data
+#   docker compose up -d
+
+name: openwebui
+
 services:
+
   openwebui:
-    image: ghcr.io/open-webui/open-webui:0.8.12
+    image: ghcr.io/open-webui/open-webui:0.9.5
     container_name: openwebui
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
-      - "127.0.0.1:8071:8080"
+      # localhost-only — front with a reverse proxy for public TLS.
+      - "127.0.0.1:${OWUI_PORT:-8071}:8080"
     environment:
-      # Authentik SSO Config
-    #  - ENABLE_OAUTH_SIGNUP=true
-    #  - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
-    #  - OAUTH_PROVIDER_NAME=authentik
-    #  - OPENID_PROVIDER_URL=
-    #  - OAUTH_CLIENT_ID=
-    #  - OAUTH_CLIENT_SECRET=
-    #  - OAUTH_SCOPES=openid email profile
-    #  - OPENID_REDIRECT_URI=
-      - PUID=1000
-      - PGID=1000
+      # CRITICAL: signs session cookies. Losing this logs everyone out
+      # but doesn't lose data; leaking it lets attackers forge sessions.
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?secret key required}
+      WEBUI_AUTH: ${WEBUI_AUTH:-true}
+      TZ: ${TZ:-Europe/Bratislava}
+    # env_file pulls in optional OLLAMA_BASE_URL, OPENAI_API_KEY,
+    # OAUTH_* (Authentik SSO), etc. without forcing them to be set.
+    env_file:
+      - .env
     volumes:
-      - ${PWD}/data:/app/backend/data
+      - ./data:/app/backend/data
+    networks:
+      - openwebui-front
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
-    restart: unless-stopped
-    networks:
-      - your-network # Change Value
+    ipc: private
+    tmpfs:
+      - /tmp:size=256m
+    deploy:
+      resources:
+        limits:
+          # Open WebUI loads a sentence-transformers embedding model on
+          # first boot (~100 MB). Bump if you enable image generation
+          # or local RAG with large documents.
+          memory: 2g
+          cpus: "2.0"
+          pids: 300
+        reservations:
+          memory: 512m
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ═══════════════════════════════════════════════════════════════════════════
+
 networks:
-    your-network: # Change Value
-      external: true
+  # External bridge: reverse proxy reaches openwebui via 127.0.0.1 port
+  # binding; also gives openwebui internet egress for external model
+  # providers (OpenAI, Anthropic) and the embedding-model download.
+  openwebui-front:
+    external: true

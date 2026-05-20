@@ -13,61 +13,84 @@
 
 ---
 
-[Open WebUI](https://github.com/open-webui/open-webui) is a free and open-source web interface for interacting with Large Language Models. A privacy-friendly, self-hosted alternative to ChatGPT.
+[Open WebUI](https://github.com/open-webui/open-webui) is a free, open-source web interface for chatting with LLMs. A privacy-friendly self-hosted ChatGPT alternative — point it at Ollama, OpenAI, Anthropic, or any OpenAI-compatible API.
 
 ## Features
 
-- **Multi-Model Support** — Connect to Ollama, OpenAI, and other providers
-- **Conversation History** — All chats stored locally
-- **Multi-User Ready** — Role-based access control
-- **RAG Support** — Upload documents for context
-- **Model Management** — Download and manage Ollama models
-- **Customizable** — Themes, personas, and custom prompts
-- **API Compatible** — Works with OpenAI-compatible APIs
+- **Multi-Model Support** — Ollama, OpenAI, Anthropic, and OpenAI-compatible providers
+- **Conversation History** — Chats stored locally in SQLite
+- **Multi-User Ready** — Role-based access control, OIDC/SSO via Authentik
+- **RAG Support** — Upload documents, embedded ChromaDB vector store
+- **Tools & Functions** — Extend with custom Python tools
+- **Image Generation** — Optional Stable Diffusion / AUTOMATIC1111 / ComfyUI integration
 
 ## Prerequisites
 
 - Docker and Docker Compose
-- External Docker network
-- Reverse proxy (Caddy, Nginx, Traefik)
-- Ollama or OpenAI API access
+- One external Docker network (`openwebui-front`)
+- Reverse proxy (Caddy, Nginx, Traefik) for public TLS
+- A model provider (see [Connecting to a Model Provider](#connecting-to-a-model-provider))
 
 ## Quick Start
 
-### 1. Update Docker Compose
-
-Edit `docker-compose.yml`:
-- Replace `your-network` with your Docker network name
-
-### 2. Deploy
+### 1. Create Docker Network
 
 ```bash
+docker network create openwebui-front
+```
+
+### 2. Configure Environment
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+The only **required** value is `WEBUI_SECRET_KEY` — Open WebUI signs session cookies with it. Without it the secret is regenerated on every restart and every user gets logged out.
+
+```bash
+openssl rand -hex 32
+```
+
+### 3. Deploy
+
+```bash
+mkdir -p data
 docker compose up -d
 ```
 
-### 3. Initial Setup
+First boot downloads the sentence-transformers embedding model (~100 MB, used for RAG). The `/health` endpoint reports healthy once startup completes.
 
-1. Access Open WebUI at `http://your-server:8071`
-2. Create an admin account (first user becomes admin)
-3. Configure your LLM backend in Settings → Connections
+### 4. Initial Setup
+
+Visit `https://chat.example.com` (or `http://localhost:8071` for local testing). The first account you create becomes the admin. Configure your model provider in **Settings → Connections**.
 
 ## Configuration
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PUID` | User ID for file permissions | `1000` |
-| `PGID` | Group ID for file permissions | `1000` |
-| `OLLAMA_BASE_URL` | Ollama API URL | - |
-| `OPENAI_API_KEY` | OpenAI API key | - |
-| `WEBUI_AUTH` | Enable authentication | `true` |
+| Variable | Description | Required |
+|---|---|---|
+| `WEBUI_SECRET_KEY` | Signs session cookies (64 hex chars) | Yes |
+| `WEBUI_AUTH` | `true` for built-in login, `false` if you front it with Authentik in proxy mode | No (default `true`) |
+| `OWUI_PORT` | Host port (127.0.0.1 only) | No (default 8071) |
+| `OLLAMA_BASE_URL` | URL of your Ollama instance | No |
+| `OPENAI_API_KEY` | OpenAI API key | No |
+| `ANTHROPIC_API_KEY` | Anthropic API key | No |
+| `OAUTH_*` | Authentik OIDC SSO settings | No |
+| `PUID` / `PGID` | Host UID/GID for the container | No (default 1000) |
+| `TZ` | Container timezone | No (default `Europe/Bratislava`) |
+
+Full [Open WebUI environment reference](https://docs.openwebui.com/getting-started/env-configuration).
 
 ### Reverse Proxy (Caddy)
 
-```
+WebSocket support is required for streaming responses:
+
+```caddyfile
 chat.example.com {
-    reverse_proxy http://localhost:8071
+    encode zstd gzip
+    reverse_proxy http://127.0.0.1:8071
 }
 ```
 
@@ -75,44 +98,80 @@ chat.example.com {
 
 | Port | Service | Description |
 |------|---------|-------------|
-| 8071 | HTTP | Web interface |
+| 8071 | HTTP | Web interface (reverse-proxy target) |
 
 ## Data Persistence
 
 | Path | Description |
 |------|-------------|
-| `./data` | Database, uploads, and settings |
+| `./data` | SQLite database, uploads, ChromaDB vector store, downloaded embedding models |
 
-## Connecting to Ollama
+## Connecting to a Model Provider
 
-If Ollama runs on the same host:
+Open WebUI needs at least one provider to actually chat. Pick whichever fits:
 
-```yaml
-environment:
-  - OLLAMA_BASE_URL=http://host.docker.internal:11434
+### Ollama on the same Docker host
+
+```bash
+# in .env
+OLLAMA_BASE_URL=http://host.docker.internal:11434
 ```
 
-If Ollama runs in Docker on the same network:
+You may need to add `extra_hosts: ["host.docker.internal:host-gateway"]` to the compose service if `host.docker.internal` doesn't resolve.
 
-```yaml
-environment:
-  - OLLAMA_BASE_URL=http://ollama:11434
+### Ollama in another compose stack
+
+Create a shared network, join both containers to it:
+
+```bash
+docker network create ollama-net
+# add `ollama-net` to openwebui-front's networks: list in this compose
+# add `ollama-net` to the ollama service's networks: list
 ```
+
+Then:
+
+```bash
+# in .env
+OLLAMA_BASE_URL=http://ollama:11434
+```
+
+### External API (OpenAI, Anthropic, etc.)
+
+```bash
+# in .env
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+You can mix providers — the UI lets users pick which model per chat.
 
 ## SSO with Authentik
 
-Uncomment and configure OAuth settings in `docker-compose.yml`:
+1. In Authentik, create an OAuth2/OpenID provider with redirect URI `https://chat.example.com/oauth/oidc/callback` and scopes `openid email profile`.
+2. Create an Authentik application linked to that provider.
+3. Set the `OAUTH_*` block in `.env` (see `.env.example`) and restart:
 
-```yaml
-- ENABLE_OAUTH_SIGNUP=true
-- OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
-- OAUTH_PROVIDER_NAME=authentik
-- OPENID_PROVIDER_URL=https://auth.example.com/application/o/openwebui/
-- OAUTH_CLIENT_ID=your-client-id
-- OAUTH_CLIENT_SECRET=your-client-secret
-- OAUTH_SCOPES=openid email profile
-- OPENID_REDIRECT_URI=https://chat.example.com/oauth/oidc/callback
+```bash
+docker compose up -d
 ```
+
+If you want to fully delegate auth to Authentik (proxy mode), set `WEBUI_AUTH=false` and front Open WebUI with Authentik's proxy outpost.
+
+## Security Features
+
+This template ships with a hardened default configuration:
+
+| Layer | Setting | Effect |
+|---|---|---|
+| Capabilities | `cap_drop: ALL`, **zero `cap_add`** (verified by test, May 2026) | No Linux capabilities granted |
+| Non-root | Runs as `${PUID}:${PGID}` (default 1000) | No root in the container |
+| Privileges | `security_opt: no-new-privileges` | Setuid binaries cannot gain caps |
+| IPC | `ipc: private` | Isolated SysV/POSIX IPC namespace |
+| Process budget | `pids: 300` | Caps fork sprawl |
+| Port exposure | `127.0.0.1` only on 8071 | Only the reverse proxy can reach Open WebUI |
+| Secret pinned | `WEBUI_SECRET_KEY` set via `.env` | Sessions survive restarts; not regenerated on every boot |
+| Healthcheck | Built-in `/health` endpoint | Boot gated by simple HTTP check |
 
 ## Support the Project
 
