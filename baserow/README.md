@@ -96,7 +96,7 @@ Navigate to your configured domain and create an account.
 
 ### Reverse Proxy (Caddy)
 
-A ready-to-go `Caddyfile` is in this directory. Minimal version:
+Minimal Caddy example for your external reverse proxy:
 
 ```
 baserow.example.com {

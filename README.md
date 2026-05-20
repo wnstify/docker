@@ -151,7 +151,7 @@ docker/
 └── zulip/               # team chat
 ```
 
-Every template directory contains at least `docker-compose.yml`, `.env.example`, and `README.md`. Some also ship a `Caddyfile` example, `init-data.sh` for non-root DB user creation, or other small helpers — see each template's own README.
+Every template directory contains at least `docker-compose.yml`, `.env.example`, and `README.md`. Some also ship an `init-data.sh` for non-root DB user creation or other small helpers — see each template's own README.
 
 ---
 
@@ -261,7 +261,7 @@ New templates must match the hardening baseline (see [Security Features](#securi
   - Database / cache tier on an external `--internal` Docker network
 - `.env.example` tracked, real `.env` git-ignored. Required vars use `${VAR:?error}` so the stack fails fast if you forget one.
 - `README.md` documenting the exact networks to `docker network create`, the required `.env` values, and any host-side prep.
-- Optional but recommended: `Caddyfile` example, `init-data.sh` for non-root DB user.
+- Optional but recommended: `init-data.sh` for non-root DB user.
 
 ---
 

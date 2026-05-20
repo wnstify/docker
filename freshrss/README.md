@@ -78,7 +78,7 @@ own UID, add a `user:` directive to the compose and pre-`chown` the
 
 ### Reverse Proxy (Caddy)
 
-A ready-to-go `Caddyfile` is in this directory. Minimal version:
+Minimal Caddy example for your external reverse proxy:
 
 ```
 rss.example.com {
