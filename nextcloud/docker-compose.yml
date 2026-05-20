@@ -1,0 +1,313 @@
+# Nextcloud — Hardened Docker Compose (postgres + redis + fpm + nginx + cron)
+# Self-hosted file sync + collaboration: https://nextcloud.com/
+#
+# Architecture (5 services, two-network split):
+#   - postgres  — official postgres:18.4 (internal-only, no internet)
+#   - redis     — official redis:7.4.9-alpine (internal-only, password-protected)
+#   - app       — nextcloud:33.0.3-fpm-alpine (PHP-FPM listener on :9000)
+#   - nginx     — official nginx:1.30.1-alpine (serves /var/www/html, proxies
+#                 PHP to app:9000) — listens on the unprivileged :8080 inside
+#                 the container so it can run as a non-root user with zero caps
+#   - cron      — same image as app, runs /cron.sh (background tasks every 5min)
+#
+# Note: this template intentionally uses vanilla Nextcloud + Postgres + Redis
+# instead of the Nextcloud AIO mastercontainer. AIO mounts /var/run/docker.sock
+# (host root via container escape) and bundles its own Watchtower to update
+# subcontainers — both incompatible with this repo's "secure by default"
+# stance. See README for the trade-offs you accept by going vanilla.
+#
+# Security baseline (verified by test, May 2026):
+#   - postgres, redis, nginx all run non-root with cap_drop: ALL and
+#     ZERO cap_add. nginx achieves this by listening on :8080 (unprivileged)
+#     and using uid-tagged tmpfs for its cache/run dirs.
+#   - app + cron run root inside the container (image design — entrypoint
+#     installs/updates Nextcloud as root, then drops fpm/cron to www-data).
+#     Their minimum cap set is 4: CHOWN, SETUID, SETGID, DAC_OVERRIDE.
+#   - security_opt: no-new-privileges; ipc: private on every container
+#   - tmpfs for ephemeral writes; deploy.resources limits incl. pids
+#   - Two-network split:
+#       nextcloud-front (external bridge) — nginx (host port + reverse-proxy
+#                                          reach), app + cron (internet egress
+#                                          for app store / updates)
+#       nextcloud-db    (--internal)       — postgres + redis + app + nginx +
+#                                            cron (no internet for the DB/cache)
+#   - 127.0.0.1 port binding — reverse proxy in front for TLS
+#   - Postgres uses SCRAM-SHA-256, non-root postgres app user via init-data.sh
+#   - Redis uses --requirepass + REDISCLI_AUTH for credential-free healthchecks
+#
+# Setup:
+#   cp .env.example .env  &&  fill secrets (openssl recipes in the file)
+#   docker network create nextcloud-front
+#   docker network create --internal nextcloud-db
+#   mkdir -p data/{postgres,redis,nextcloud}
+#   docker compose up -d
+#   # First boot installs Nextcloud (~2 min); login at https://<your-host>/
+
+name: nextcloud
+
+services:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DATABASE
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  postgres:
+    image: postgres:18.4
+    container_name: nextcloud-postgres
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?postgres root user required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?postgres root password required}
+      POSTGRES_DB: ${POSTGRES_DB:-nextcloud}
+      POSTGRES_NON_ROOT_USER: ${POSTGRES_NON_ROOT_USER:?app db user required}
+      POSTGRES_NON_ROOT_PASSWORD: ${POSTGRES_NON_ROOT_PASSWORD:?app db password required}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      PGDATA: /var/lib/postgresql/data
+      TZ: ${TZ:-Europe/Bratislava}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./init-data.sh:/docker-entrypoint-initdb.d/init-data.sh:ro
+    networks: [nextcloud-db]
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+      - /var/run/postgresql:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+          pids: 300
+        reservations:
+          memory: 256m
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB:-nextcloud}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CACHE / FILE-LOCK STORE
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  redis:
+    image: redis:7.4.9-alpine3.21
+    container_name: nextcloud-redis
+    restart: unless-stopped
+    user: "999:1000"
+    command:
+      - sh
+      - -euc
+      - |
+        echo "requirepass $$REDIS_PASSWORD" > /tmp/redis.conf
+        exec redis-server /tmp/redis.conf
+    environment:
+      # REDISCLI_AUTH lets the healthcheck call redis-cli without putting
+      # the password on the command line (which would appear in ps).
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?redis password required}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - ./data/redis:/data
+    networks: [nextcloud-db]
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+          pids: 100
+        reservations:
+          memory: 64m
+          cpus: "0.1"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # APPLICATION — PHP-FPM listener
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  app:
+    image: nextcloud:33.0.3-fpm-alpine
+    container_name: nextcloud-app
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    environment:
+      # App connects to postgres as the NON-root user from init-data.sh.
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-nextcloud}
+      POSTGRES_USER: ${POSTGRES_NON_ROOT_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_NON_ROOT_PASSWORD}
+      # Redis (file locking, memory cache, session store).
+      REDIS_HOST: redis
+      REDIS_HOST_PASSWORD: ${REDIS_PASSWORD}
+      # First-boot admin account (only used during initial install).
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:?admin user required}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:?admin password required}
+      # Hosts Nextcloud will accept requests for. Comma-separated.
+      NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS:?at least one trusted domain required}
+      # Tell Nextcloud the public URL terminates TLS at the reverse proxy.
+      OVERWRITEPROTOCOL: ${OVERWRITEPROTOCOL:-https}
+      OVERWRITEHOST: ${OVERWRITEHOST:-}
+      OVERWRITECLIURL: ${OVERWRITECLIURL:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16}
+      TZ: ${TZ:-Europe/Bratislava}
+    # env_file picks up optional SMTP_* and OBJECTSTORE_S3_* without forcing
+    # them to be set.
+    env_file:
+      - .env
+    volumes:
+      - ./data/nextcloud:/var/www/html
+    networks: [nextcloud-front, nextcloud-db]
+    cap_drop:
+      - ALL
+    cap_add:
+      # Entrypoint copies install files from /usr/src/nextcloud and chowns
+      # /var/www/html to www-data on first boot / version bumps.
+      - CHOWN
+      # The entrypoint runs as root and `gosu www-data` for the actual
+      # FPM master — that's a setuid+setgid call.
+      - SETUID
+      - SETGID
+      # Bind mount /var/www/html is owned by host UID (1000 by default).
+      # Without DAC_OVERRIDE, root in the container can't seed
+      # /var/www/html on first install.
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=256m
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+          pids: 500
+        reservations:
+          memory: 512m
+          cpus: "0.25"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WEB FRONTEND — serves /var/www/html and proxies PHP to app:9000
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  nginx:
+    image: nginx:1.30.1-alpine3.23
+    container_name: nextcloud-nginx
+    restart: unless-stopped
+    # Run as the image's nginx user (uid 101). Combined with listen 8080
+    # in nginx.conf (unprivileged port inside the container), this means
+    # we can drop ALL capabilities and add ZERO back.
+    user: "101:101"
+    depends_on:
+      app: { condition: service_started }
+    ports:
+      # localhost-only — front with a reverse proxy for public TLS.
+      - "127.0.0.1:${NEXTCLOUD_PORT:-8081}:8080"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # nginx only serves files, never writes — mount the data volume :ro.
+      - ./data/nextcloud:/var/www/html:ro
+    networks: [nextcloud-front, nextcloud-db]
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+      # nginx (uid 101) needs writable cache + run dirs; the image's
+      # /var/cache/nginx and /var/run are root-owned so we override with
+      # uid-tagged tmpfs that the non-root nginx user can write to.
+      - /var/cache/nginx:size=64m,uid=101,gid=101,mode=0755
+      - /var/run:size=8m,uid=101,gid=101,mode=0755
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+          pids: 100
+        reservations:
+          memory: 64m
+          cpus: "0.1"
+    healthcheck:
+      # Nextcloud's /status.php returns 200 with a JSON status when the
+      # whole stack (nginx -> fpm -> postgres + redis) is healthy.
+      test: ["CMD", "wget", "-qO-", "--spider", "http://127.0.0.1:8080/status.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CRON — runs Nextcloud's background jobs every 5 minutes
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  cron:
+    image: nextcloud:33.0.3-fpm-alpine
+    container_name: nextcloud-cron
+    restart: unless-stopped
+    entrypoint: /cron.sh
+    depends_on:
+      app: { condition: service_started }
+    volumes:
+      - ./data/nextcloud:/var/www/html
+    networks: [nextcloud-front, nextcloud-db]
+    cap_drop:
+      - ALL
+    cap_add:
+      # busybox crond starts as root and drops to www-data via `su` for
+      # each cron.php run. Same caps as the app container.
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=128m
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+          pids: 100
+        reservations:
+          memory: 128m
+          cpus: "0.1"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ═══════════════════════════════════════════════════════════════════════════
+
+networks:
+  # External-facing: reverse proxy reaches Nextcloud via 127.0.0.1 port
+  # binding; also gives app + cron internet egress for the Nextcloud app
+  # store, federation, and outbound webhooks.
+  nextcloud-front:
+    external: true
+  # Internal: postgres + redis + the app's DB/cache traffic. No host port,
+  # no internet egress.
+  nextcloud-db:
+    external: true
