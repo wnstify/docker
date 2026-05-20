@@ -1,25 +1,109 @@
+# qBittorrent — Hardened Docker Compose (single service)
+# Self-hosted BitTorrent client with WebUI: https://www.qbittorrent.org/
+#
+# Architecture (1 service):
+#   - qbittorrent  — qbittorrentofficial/qbittorrent-nox:5.2.0-1
+#                    (Alpine-based upstream-official image, no s6-overlay)
+#
+# Why the upstream-official image (not lscr.io/linuxserver/qbittorrent):
+#   - Maintained by the qBittorrent project directly (sledgehammer999)
+#   - Single-process container; no s6-overlay init layer
+#   - ~190 MB compressed, multi-arch (amd64/arm64/armv7/riscv64/386)
+#   - Patched on the same day qBittorrent cuts a release
+#
+# Security baseline (verified by test, May 2026):
+#   - Runs as ${PUID}:${PGID} via compose `user:` directive — the entrypoint
+#     skips its root-only chown/doas branch entirely, so we drop ALL caps
+#     and add ZERO back. Verified healthy under test.
+#   - security_opt: no-new-privileges; ipc: private
+#   - tmpfs for ephemeral writes; deploy.resources limits incl. pids
+#   - 127.0.0.1 port bindings on the WebUI — reverse proxy fronts TLS
+#   - BitTorrent listen port published on all interfaces (peers must reach it)
+#   - QBT_LEGAL_NOTICE=confirm is required by the image; defaulted in .env
+#   - stop_grace_period: 30m — qBittorrent needs time to flush sessions
+#     cleanly on shutdown; the upstream README warns truncating this can
+#     corrupt in-progress torrents.
+#   - Healthcheck hits the WebUI listener (busybox wget is in the image)
+#
+# Setup:
+#   cp .env.example .env  &&  edit values (PUID/PGID/TZ/ports/MEDIA paths)
+#   docker network create qbittorrent-front
+#   mkdir -p data
+#   docker compose up -d
+#   # First-run admin password is printed to stdout:
+#   docker logs qbittorrent 2>&1 | grep -i "temporary password"
+
+name: qbittorrent
+
 services:
+
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:5.1.4
+    image: qbittorrentofficial/qbittorrent-nox:5.2.0-1
     container_name: qbittorrent
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Bratislava #Change to your timezone
-      - WEBUI_PORT=9160
-    ports:
-      - 127.0.0.1:9160:9160 #Localhost only with reverse-proxy
-      - 6881:6881
-      - 6881:6881/udp
-    volumes:
-      - ${PWD}/data:/config
-      - /media-data/movies:/movies # Same path as in Jellyfin 
-      - /media-data/shows:/shows # Same path as in Jellyfin
     restart: unless-stopped
+    # Run as the host UID/GID directly. This makes the entrypoint take its
+    # isRoot=0 branch and skip the chown/doas dance, letting us cap_drop ALL
+    # without re-adding CHOWN/SETUID/SETGID/DAC_OVERRIDE.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    # qBittorrent needs time to flush DHT + checkpoint torrents on shutdown.
+    # Short stop timeouts corrupt in-progress downloads — see upstream README.
+    stop_grace_period: 30m
+    environment:
+      # Required by the official image — confirms you've read qBittorrent's
+      # legal notice. Set to "confirm" in .env.example.
+      QBT_LEGAL_NOTICE: ${QBT_LEGAL_NOTICE:?must be set to "confirm" in .env}
+      QBT_WEBUI_PORT: 8080
+      QBT_TORRENTING_PORT: 6881
+      TZ: ${TZ:-Europe/Bratislava}
+    ports:
+      # WebUI: localhost-only — front with a reverse proxy for public TLS.
+      - "127.0.0.1:${QBT_WEBUI_HOST_PORT:-9160}:8080"
+      # BitTorrent listen port: must be reachable by peers, so bind on all
+      # interfaces. Forward this in your router/firewall for inbound peers.
+      - "${QBT_TORRENT_PORT:-6881}:6881/tcp"
+      - "${QBT_TORRENT_PORT:-6881}:6881/udp"
+    volumes:
+      # qBittorrent state (settings, session, torrent .fastresume cache).
+      - ./data:/config
+      # Downloads target. Use the SAME host path your media server mounts
+      # so completed downloads appear in Jellyfin/Plex without a copy.
+      - ${DOWNLOADS_DIR:?path to your downloads dir required}:/downloads
     networks:
-      - your-network # Change Value
+      - qbittorrent-front
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=128m
+    deploy:
+      resources:
+        limits:
+          # libtorrent's piece cache + active-torrent state. Bump if you
+          # run hundreds of concurrent torrents or large piece caches.
+          memory: 1g
+          cpus: "2.0"
+          pids: 300
+        reservations:
+          memory: 128m
+          cpus: "0.1"
+    healthcheck:
+      # WebUI's `/` serves the login HTML (200 OK) once Qt + the HTTP
+      # listener are up. busybox wget is preinstalled in the Alpine image.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ═══════════════════════════════════════════════════════════════════════════
+
 networks:
-    your-network: # Change Value
-      external: true
+  # External bridge: the reverse proxy reaches qBittorrent via the
+  # 127.0.0.1 WebUI port binding. The BitTorrent listen port is published
+  # on all host interfaces (not via this network) so peers can connect.
+  qbittorrent-front:
+    external: true
