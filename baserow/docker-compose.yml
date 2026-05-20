@@ -1,60 +1,165 @@
+# Baserow — Hardened Docker Compose (all-in-one image, separate Postgres)
+# No-code Airtable alternative: https://baserow.io/
+#
+# Architecture:
+#   - postgres   — official postgres:18.4 (separate container, internal net)
+#   - baserow    — baserow/baserow:2.2.2 all-in-one (backend+frontend+celery+
+#                  caddy+redis, all supervised internally by s6-overlay)
+#
+# Security baseline:
+#   - cap_drop: ALL with minimum caps for s6-overlay + Caddy port-80 bind
+#   - security_opt: no-new-privileges; ipc: private
+#   - non-root long-running processes (s6 drops to PUID:PGID; postgres
+#     drops to postgres:postgres)
+#   - tmpfs for ephemeral writes; deploy.resources limits incl. pids
+#   - Two-network split: baserow-front (external) + baserow-db (internal,
+#     no internet egress for postgres)
+#   - 127.0.0.1 port binding — reverse proxy in front for TLS
+#   - Healthchecks gate startup via depends_on; built-in scripts only
+#   - SCRAM-SHA-256 password auth on postgres (stronger than default md5)
+#
+# Setup:
+#   cp .env.example .env  &&  fill secrets (openssl recipes in the file)
+#   docker network create baserow-front
+#   docker network create --internal baserow-db
+#   docker compose up -d
+
+name: baserow
+
 services:
+
   postgres:
-    image: postgres:17
-    container_name: baserow_postgres
-    restart: always
+    image: postgres:18.4
+    container_name: baserow-postgres
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER
-      - POSTGRES_PASSWORD
-      - POSTGRES_DB
-      - POSTGRES_NON_ROOT_USER
-      - POSTGRES_NON_ROOT_PASSWORD
-      - PUID=1000
-      - PGID=1000
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_NON_ROOT_USER: ${POSTGRES_NON_ROOT_USER}
+      POSTGRES_NON_ROOT_PASSWORD: ${POSTGRES_NON_ROOT_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      # Postgres 18 changed its default data dir under /var/lib/postgresql/18/.
+      # Pin it back so users upgrading from postgres:17 don't need migration.
+      PGDATA: /var/lib/postgresql/data
+      TZ: ${TZ:-Europe/Bratislava}
     volumes:
       - ${PWD}/db_storage:/var/lib/postgresql/data
-      - ${PWD}/init-data.sh:/docker-entrypoint-initdb.d/init-data.sh
+      - ${PWD}/init-data.sh:/docker-entrypoint-initdb.d/init-data.sh:ro
+    networks:
+      - baserow-db
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+      - /var/run/postgresql:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 256m
+          cpus: "0.25"
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
-    security_opt:
-      - no-new-privileges:true
+      start_period: 30s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    networks:
-      - your-network # Change Value
+
   baserow:
+    image: baserow/baserow:2.2.2
     container_name: baserow
-    image: baserow/baserow:2.1.6
-    restart: always
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
-      - "127.0.0.1:89:80"
+      - "127.0.0.1:89:80"  # localhost only — front with a reverse proxy
     environment:
-      BASEROW_PUBLIC_URL: 'https://something.example.com/' # Change Value'
+      # Public URL (must match your reverse proxy config exactly).
+      BASEROW_PUBLIC_URL: ${BASEROW_PUBLIC_URL}
+      # --- External DB (non-root user from init-data.sh) ------------------
       DATABASE_NAME: ${POSTGRES_DB}
       DATABASE_USER: ${POSTGRES_NON_ROOT_USER}
       DATABASE_PASSWORD: ${POSTGRES_NON_ROOT_PASSWORD}
-      DATABASE_HOST: baserow_postgres
+      DATABASE_HOST: postgres
       DATABASE_PORT: 5432
- #     FROM_EMAIL: your-sender # Change Value
- #     EMAIL_SMTP: yes
- #     EMAIL_SMTP_HOST: smtp.postmarkapp.com
- #     EMAIL_SMTP_USE_TLS: yes
- #     EMAIL_SMTP_PORT: 587
- #     EMAIL_SMTP_USER: your-api # Change Value
- #     EMAIL_SMTP_PASSWORD: your-api # Change Value
-      PUID: 1000
-      PGID: 1000
+      # --- Secrets (CRITICAL — see .env.example for openssl recipes) ------
+      # Signs JWTs for user sessions; losing this invalidates all sessions.
+      BASEROW_JWT_SIGNING_KEY: ${BASEROW_JWT_SIGNING_KEY}
+      # Protects the Redis instance running inside the all-in-one container.
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Django secret key — required in production.
+      SECRET_KEY: ${SECRET_KEY}
+      # --- LSIO-style file ownership convention ---------------------------
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Europe/Bratislava}
     volumes:
       - ${PWD}/baserow_data:/baserow/data
+    networks:
+      - baserow-front
+      - baserow-db
+    cap_drop:
+      - ALL
+    cap_add:
+      # Baserow's internal Caddy binds privileged port 80 in the container.
+      - NET_BIND_SERVICE
+      # Drop privileges to baserow/redis users for worker processes.
+      - SETGID
+      - SETUID
+      # First-run setup chowns /baserow/data subdirs to those users.
+      - CHOWN
+      # Root in the container writes to the host-owned bind mount on first
+      # boot (mkdir /baserow/data/redis etc.) — needs DAC_OVERRIDE because
+      # the mount source is owned by your host user, not container root.
+      # FOWNER NOT needed — verified by test.
+      - DAC_OVERRIDE
     security_opt:
       - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=256m
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: "2.0"
+          pids: 500
+        reservations:
+          memory: 512m
+          cpus: "0.25"
+    healthcheck:
+      # Use the image's built-in healthcheck — hits the backend gunicorn
+      # directly (bypasses internal Caddy, so no Host-header matching needed).
+      # start_period: 300s because the first boot syncs ~156 templates.
+      test: ["CMD", "/baserow/backend/docker/docker-entrypoint.sh", "backend-healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    networks:
-      - your-network # Change Value
+
 networks:
-    your-network: # Change Value 
-      external: true
+  # External-facing: reverse proxy reaches baserow here (or via 127.0.0.1:89).
+  baserow-front:
+    external: true
+  # Internal: baserow <-> postgres only, no internet egress.
+  baserow-db:
+    external: true
