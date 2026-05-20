@@ -1,0 +1,124 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":timezone(Europe/Bratislava)"
+  ],
+  "labels": ["renovate"],
+  "rangeStrategy": "pin",
+  "schedule": ["after 6am and before 10am on monday"],
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 10,
+  "ignorePaths": [
+    "AUDIT.md",
+    "**/test/**"
+  ],
+  "docker-compose": {
+    "fileMatch": ["(^|/)docker-compose[^/]*\\.ya?ml$"]
+  },
+  "packageRules": [
+    {
+      "description": "Group postgres bumps across every template",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "postgres",
+        "docker.io/library/postgres"
+      ],
+      "groupName": "postgres"
+    },
+    {
+      "description": "Group redis bumps",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "redis",
+        "docker.io/redis"
+      ],
+      "groupName": "redis"
+    },
+    {
+      "description": "Group mongodb bumps",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "mongo",
+        "docker.io/mongo"
+      ],
+      "groupName": "mongodb"
+    },
+    {
+      "description": "Group rabbitmq bumps",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "rabbitmq",
+        "docker.io/rabbitmq"
+      ],
+      "groupName": "rabbitmq"
+    },
+    {
+      "description": "Group all stoatchat services (they release as a set)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/stoatchat/**"],
+      "groupName": "stoatchat"
+    },
+    {
+      "description": "Auto-merge patch updates on battle-tested infrastructure images. The pr-cve-gate workflow verifies CVE delta before this merges.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "postgres", "docker.io/library/postgres",
+        "mariadb", "docker.io/mariadb",
+        "redis", "docker.io/redis",
+        "mongo", "docker.io/mongo",
+        "nginx",
+        "memcached",
+        "rabbitmq", "docker.io/rabbitmq",
+        "alpine", "docker.io/alpine",
+        "caddy", "docker.io/caddy",
+        "tecnativa/docker-socket-proxy"
+      ],
+      "matchUpdateTypes": ["patch", "pinDigest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Application images: require human review for any update type",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "ghcr.io/goauthentik/server",
+        "baserow/baserow",
+        "fnsys/dockhand",
+        "docuseal/docuseal",
+        "freshrss/freshrss",
+        "lscr.io/linuxserver/jellyfin",
+        "ghcr.io/ylianst/meshcentral",
+        "docker.n8n.io/n8nio/n8n",
+        "n8nio/runners",
+        "deluan/navidrome",
+        "nextcloud",
+        "ghcr.io/open-webui/open-webui",
+        "qbittorrentofficial/qbittorrent-nox",
+        "towfiqi/serpbear",
+        "louislam/uptime-kuma",
+        "docker.io/louislam/uptime-kuma",
+        "adguard/adguardhome",
+        "ghcr.io/wg-easy/wg-easy",
+        "ghcr.io/zulip/zulip-server",
+        "ghcr.io/stoatchat/**",
+        "docker.io/dxflrs/garage"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Major updates always need human review and the [breaking] label",
+      "matchUpdateTypes": ["major"],
+      "labels": ["renovate", "breaking"],
+      "automerge": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["renovate", "security"]
+  },
+  "osvVulnerabilityAlerts": true
+}

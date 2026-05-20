@@ -1,0 +1,35 @@
+# Run with:  pre-commit install        (one-time, sets the hook)
+#            pre-commit run --all-files (run hooks against the whole repo)
+# Update pin revisions with:  pre-commit autoupdate
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+        args: ['--unsafe']      # docker-compose uses YAML tags Renovate emits
+        exclude: '^\.github/workflows/'
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ['--maxkb=200']
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args: ['-c', '.yamllint.yml']
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: no-latest-tags
+        name: Reject :latest and unpinned image tags
+        entry: scripts/check-no-latest.sh
+        language: script
+        files: 'docker-compose\.ya?ml$'

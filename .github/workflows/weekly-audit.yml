@@ -1,0 +1,124 @@
+name: Weekly audit refresh
+
+on:
+  schedule:
+    # Mondays 06:00 UTC (07:00 / 08:00 Bratislava depending on DST)
+    - cron: '0 6 * * MON'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: weekly-audit
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
+
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ github.run_id }}
+          restore-keys: trivy-db-
+
+      - name: Update Trivy DB
+        run: trivy image --download-db-only
+
+      - name: Scan every image
+        run: |
+          chmod +x .github/scripts/scan-all.sh
+          .github/scripts/scan-all.sh .audit/scans
+
+      - name: Download previous week's scan artifact
+        id: previous
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: weekly-audit.yml
+          name: trivy-scans
+          path: .audit/previous
+          if_no_artifact_found: warn
+
+      - name: Compute CVE delta
+        id: delta
+        run: |
+          python3 .github/scripts/cve-delta.py \
+            --current .audit/scans \
+            --previous .audit/previous \
+            > delta.md
+          # If delta.md says "No changes", skip PR creation
+          if grep -q '^\*\*No changes\.\*\*' delta.md; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          cat delta.md
+
+      - name: Refresh AUDIT.md header
+        if: steps.delta.outputs.changed == 'true'
+        env:
+          # Computed inline so the Python heredoc can stay single-quoted (no shell expansion inside regex).
+          TODAY: ""
+          DB_UPDATED: ""
+          TRIVY_VER: ""
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          DB_UPDATED=$(jq -r '.UpdatedAt' ~/.cache/trivy/db/metadata.json 2>/dev/null \
+                       | sed 's/T/ /; s/\..*//')
+          TRIVY_VER=$(trivy --version | awk '/^Version:/ {print $2; exit}')
+          export TODAY DB_UPDATED TRIVY_VER
+          python3 - <<'PY'
+          import os, re, pathlib
+          today      = os.environ["TODAY"]
+          db_updated = os.environ["DB_UPDATED"]
+          trivy_ver  = os.environ["TRIVY_VER"]
+          p = pathlib.Path("AUDIT.md")
+          t = p.read_text(encoding="utf-8")
+          t = re.sub(r"(\| \*\*Scan date\*\* \| ).*( \|)",
+                     rf"\g<1>{today}\g<2>", t, count=1)
+          t = re.sub(r"(\| \*\*Scanner\*\* \| Trivy ).*( \|)",
+                     rf"\g<1>{trivy_ver}\g<2>", t, count=1)
+          t = re.sub(r"(\| \*\*Vulnerability DB\*\* \| aquasec/trivy-db v2 — updated ).*( UTC \|)",
+                     rf"\g<1>{db_updated}\g<2>", t, count=1)
+          p.write_text(t, encoding="utf-8")
+          PY
+
+      - name: Upload current scans as next week's artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scans
+          path: .audit/scans/
+          retention-days: 100
+
+      - name: Open / update audit PR
+        if: steps.delta.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/weekly-audit-refresh
+          base: main
+          delete-branch: true
+          commit-message: "Weekly audit refresh — CVE delta detected"
+          title: "Weekly audit refresh: ${{ github.run_id }}"
+          body-path: delta.md
+          labels: |
+            audit
+            automated
+          add-paths: |
+            AUDIT.md
+
+      - name: No-op note when unchanged
+        if: steps.delta.outputs.changed == 'false'
+        run: echo "No CVE delta. Skipping PR. Artifact updated for next week."
