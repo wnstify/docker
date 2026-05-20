@@ -33,41 +33,41 @@
 
 ## Quick Start
 
-### 1. Configure Environment
+### 1. Create Docker Networks
 
-Copy and edit the environment file:
+Two of the three are `--internal` (no internet egress):
+
+```bash
+docker network create n8n-front
+docker network create --internal n8n-db
+docker network create --internal n8n-runners
+```
+
+### 2. Configure Environment
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-Update these values:
-- `POSTGRES_USER` / `POSTGRES_PASSWORD` — Database root credentials
-- `POSTGRES_NON_ROOT_USER` / `POSTGRES_NON_ROOT_PASSWORD` — n8n database user
+The `.env.example` file lists every required value with `openssl` recipes
+for generating the two critical secrets:
 
-### 2. Update Docker Compose
+- `N8N_ENCRYPTION_KEY` — encrypts saved credentials. **If you lose this
+  after saving credentials, those credentials are unrecoverable.**
+  Generate with: `openssl rand -hex 32`
+- `N8N_RUNNERS_AUTH_TOKEN` — shared between n8n and the task runner.
+  Generate with: `openssl rand -base64 32`
 
-Edit `docker-compose.yml`:
-- Replace `your-network` with your Docker network name
-- Update `WEBHOOK_URL` to your public URL
-- Update `N8N_HOST` to your domain
-- Generate and set `N8N_ENCRYPTION_KEY`
-- Update `GENERIC_TIMEZONE` to your timezone
+Also set `N8N_HOST` and `WEBHOOK_URL` to match your public domain.
 
-### 3. Generate Encryption Key
-
-```bash
-openssl rand -hex 32
-```
-
-### 4. Deploy
+### 3. Deploy
 
 ```bash
 docker compose up -d
 ```
 
-### 5. Access n8n
+### 4. Access n8n
 
 Navigate to your configured domain and create an owner account.
 
@@ -75,17 +75,18 @@ Navigate to your configured domain and create an owner account.
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `POSTGRES_USER` | PostgreSQL root username | `changeUser` |
-| `POSTGRES_PASSWORD` | PostgreSQL root password | `changePassword` |
-| `POSTGRES_DB` | Database name | `n8n` |
-| `POSTGRES_NON_ROOT_USER` | n8n database username | `changeUser` |
-| `POSTGRES_NON_ROOT_PASSWORD` | n8n database password | `changePassword` |
-| `WEBHOOK_URL` | Public webhook URL | (required) |
-| `N8N_HOST` | n8n hostname | (required) |
-| `N8N_ENCRYPTION_KEY` | Encryption key for credentials | (required) |
-| `GENERIC_TIMEZONE` | Timezone | `Europe/Bratislava` |
+| Variable | Description | Required |
+|---|---|---|
+| `POSTGRES_USER` | Postgres superuser (used only for init) | Yes |
+| `POSTGRES_PASSWORD` | Postgres superuser password | Yes |
+| `POSTGRES_DB` | Database name (default: `n8n`) | Yes |
+| `POSTGRES_NON_ROOT_USER` | n8n DB user (least privilege) | Yes |
+| `POSTGRES_NON_ROOT_PASSWORD` | n8n DB user password | Yes |
+| `N8N_ENCRYPTION_KEY` | 32-byte hex — encrypts saved credentials | Yes |
+| `N8N_RUNNERS_AUTH_TOKEN` | Shared n8n ↔ runner token | Yes |
+| `N8N_HOST` | Hostname only (no scheme) | Yes |
+| `WEBHOOK_URL` | Full external URL with trailing slash | Yes |
+| `TZ` | Container timezone | No (default: `Europe/Bratislava`) |
 
 ### Reverse Proxy (Caddy)
 
@@ -99,14 +100,47 @@ n8n.example.com {
 
 | Port | Service | Description |
 |------|---------|-------------|
-| 5678 | HTTP | Web interface & webhooks |
+| 5678 | HTTP | n8n editor & webhooks (bound to `127.0.0.1`) |
+| 5679 | RPC  | Task-runner broker (internal network only) |
+| 5680 | RPC  | Runner health (internal network only) |
 
 ## Data Persistence
 
 | Path | Description |
 |------|-------------|
-| `./db_storage` | PostgreSQL data |
-| `./n8n_storage` | n8n workflows and credentials |
+| `./db_storage` | PostgreSQL data (`/var/lib/postgresql/data`) |
+| `./n8n_storage` | n8n workflows, settings, encrypted credentials |
+
+The runner is stateless — no volume needed.
+
+## Security Features
+
+This template ships with a hardened default configuration:
+
+| Layer | Setting | Effect |
+|---|---|---|
+| Capabilities | `cap_drop: ALL` (postgres adds 5 init caps; n8n/runner add none) | No NET/SYS caps anywhere |
+| Privileges | `security_opt: no-new-privileges` on all containers | Setuid binaries cannot gain caps |
+| IPC | `ipc: private` on all containers | Isolated SysV/POSIX IPC namespace |
+| Process budget | `pids` 200 / 500 / 300 (pg / n8n / runner) | Caps fork sprawl |
+| Memory / CPU | Per-container limits | One service can't starve the others |
+| Three-network split | `n8n-db` and `n8n-runners` created with `--internal` | Postgres + runner have no internet egress |
+| Port exposure | `127.0.0.1:5678` only | Only the reverse proxy can reach n8n |
+| DB user | `POSTGRES_NON_ROOT_USER` (created by `init-data.sh`) | n8n never has Postgres superuser |
+| Task runner | Code/Function nodes execute in a separate container | Workflow JavaScript can't touch n8n's process memory |
+| Healthchecks | `pg_isready` / `wget` `/healthz` — no creds on cmdline | Built-in scripts only |
+| Telemetry | `N8N_DIAGNOSTICS_ENABLED=false` | No phone-home |
+| File perms | `N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true` | n8n refuses to start if `~/.n8n/config` is world-readable |
+
+> **Code nodes can't make outbound HTTP calls by default** because the
+> runner is on an internal network. If a workflow needs external HTTP
+> from JavaScript, use n8n's **HTTP Request node** (runs in the n8n
+> container, has internet via `n8n-front`). To allow outbound from the
+> runner anyway, drop `internal: true` on the `n8n-runners` network.
+
+> **Postgres image upgrade (optional):** swap `postgres:18.4` for
+> `dhi.io/postgres:18` (Docker Hardened Images) for a distroless base
+> with faster CVE patches. Requires a DHI subscription.
 
 ## Email Configuration
 

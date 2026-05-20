@@ -1,71 +1,209 @@
+# n8n — Hardened Docker Compose (workflow automation)
+# Three services: postgres backend, n8n editor/webhook, separate task runner.
+#
+# Security baseline:
+#   - cap_drop: ALL with minimum caps only on postgres (init/privilege drop);
+#     n8n and runner run as the image's `node` user (UID 1000), no caps
+#   - security_opt: no-new-privileges; ipc: private on every container
+#   - Three-network isolation:
+#       n8n-front     (external) — reverse proxy reaches n8n here
+#       n8n-db        (internal) — n8n <-> postgres only, no internet
+#       n8n-runners   (internal) — n8n <-> runner only, no internet
+#     Code nodes (executed in the runner) can't make outbound calls by
+#     default — use n8n's HTTP Request node for that.
+#   - deploy.resources limits incl. pids on every container
+#   - tmpfs for ephemeral writes; healthchecks gate startup via depends_on
+#   - 127.0.0.1 port binding — reverse proxy in front for TLS
+#   - Task runner isolates user-defined JS from n8n's main process
+#
+# Setup:
+#   cp .env.example .env  &&  fill in strong secrets (see file for openssl recipes)
+#   docker network create n8n-front
+#   docker network create --internal n8n-db
+#   docker network create --internal n8n-runners
+#   docker compose up -d
+
+name: n8n
+
 services:
-  n8n-postgres:
-    image: postgres:17
-    restart: always
+
+  postgres:
+    image: postgres:18.4
     container_name: n8n-postgres
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER
-      - POSTGRES_PASSWORD
-      - POSTGRES_DB
-      - POSTGRES_NON_ROOT_USER
-      - POSTGRES_NON_ROOT_PASSWORD
-      - PUID=1000
-      - PGID=1000
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_NON_ROOT_USER: ${POSTGRES_NON_ROOT_USER}
+      POSTGRES_NON_ROOT_PASSWORD: ${POSTGRES_NON_ROOT_PASSWORD}
+      # Postgres 18 moved its default data dir under /var/lib/postgresql/18/.
+      # Pin it back to /var/lib/postgresql/data so users upgrading from
+      # postgres:17 don't need a data migration.
+      PGDATA: /var/lib/postgresql/data
+      TZ: ${TZ:-Europe/Bratislava}
     volumes:
       - ${PWD}/db_storage:/var/lib/postgresql/data
-      - ${PWD}/init-data.sh:/docker-entrypoint-initdb.d/init-data.sh
+      - ${PWD}/init-data.sh:/docker-entrypoint-initdb.d/init-data.sh:ro
+    networks:
+      - n8n-db
+    cap_drop:
+      - ALL
+    cap_add:
+      # Minimum caps for postgres entrypoint init + privilege drop to postgres:postgres.
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+      - /var/run/postgresql:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 256m
+          cpus: "0.25"
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
-    security_opt:
-      - no-new-privileges:true
+      start_period: 30s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    networks:
-      - your-network # Change Value
+
   n8n:
-    image: docker.n8n.io/n8nio/n8n:2.15.1
+    image: docker.n8n.io/n8nio/n8n:2.21.4
     container_name: n8n
-    restart: always
-    environment:
-      - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_HOST=n8n-postgres
-      - DB_POSTGRESDB_PORT=5432
-      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
-      - DB_POSTGRESDB_USER=${POSTGRES_NON_ROOT_USER}
-      - DB_POSTGRESDB_PASSWORD=${POSTGRES_NON_ROOT_PASSWORD}
-      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
-      - PUID=1000
-      - PGID=1000
-#      - N8N_EMAIL_MODE=smtp
-#      - N8N_SMTP_HOST=smtp.postmarkapp.com
-#      - N8N_SMTP_PORT=587
-#      - N8N_SMTP_USER=your-api # Change Value
-#      - N8N_SMTP_PASS=your-api # Change Value
-#      - N8N_SMTP_SSL=false
-#      - N8N_SMTP_SENDER=your-sender # Change Value
-      - WEBHOOK_URL=https://something.example.com/ # Change Value
-      - N8N_PROTOCOL=https
-      - N8N_HOST=something.example.com # Change Value
-      - N8N_ENCRYPTION_KEY=your-key # Change Value
-      - GENERIC_TIMEZONE=Europe/Bratislava # Change Value to your correct Timezone
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
-      - 127.0.0.1:5678:5678 #Localhost only with reverse-proxy
-    links:
-      - n8n-postgres
+      - "127.0.0.1:5678:5678"
+    environment:
+      # --- Database connection (non-root user from init-data.sh) -----------
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_NON_ROOT_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_NON_ROOT_PASSWORD}
+      DB_POSTGRESDB_SCHEMA: public
+      DB_POSTGRESDB_POOL_SIZE: "10"
+      # --- Server / proxy ---------------------------------------------------
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: https
+      N8N_EDITOR_BASE_URL: ${WEBHOOK_URL}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      N8N_PROXY_HOPS: "1"
+      N8N_SECURE_COOKIE: "true"
+      # --- Hardening / privacy ---------------------------------------------
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      # --- Task runners (Code nodes execute in a separate sandbox) ---------
+      # Runners are enabled by default in n8n 2.21+; no N8N_RUNNERS_ENABLED needed.
+      N8N_RUNNERS_MODE: external
+      N8N_RUNNERS_BROKER_LISTEN_ADDRESS: 0.0.0.0
+      N8N_RUNNERS_AUTH_TOKEN: ${N8N_RUNNERS_AUTH_TOKEN}
+      # --- Locale ----------------------------------------------------------
+      GENERIC_TIMEZONE: ${TZ:-Europe/Bratislava}
+      TZ: ${TZ:-Europe/Bratislava}
     volumes:
       - ${PWD}/n8n_storage:/home/node/.n8n
-    depends_on:
-      n8n-postgres:
-        condition: service_healthy
+    networks:
+      - n8n-front
+      - n8n-db
+      - n8n-runners
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=128m
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+          pids: 500
+        reservations:
+          memory: 256m
+          cpus: "0.25"
+    healthcheck:
+      # /healthz is unauthenticated, returns 200 when ready.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+
+  runner:
+    # Executes Code/Function nodes in a separate sandbox container.
+    # Reaches n8n's broker on port 5679 over the n8n-runners network.
+    # Note: runners are published to Docker Hub only, not docker.n8n.io.
+    image: n8nio/runners:2.21.4
+    container_name: n8n-runner
+    restart: unless-stopped
+    depends_on:
+      n8n:
+        condition: service_healthy
+    environment:
+      N8N_RUNNERS_TASK_BROKER_URI: http://n8n:5679
+      N8N_RUNNERS_AUTH_TOKEN: ${N8N_RUNNERS_AUTH_TOKEN}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_HOST: ${N8N_HOST}
+      GENERIC_TIMEZONE: ${TZ:-Europe/Bratislava}
+      TZ: ${TZ:-Europe/Bratislava}
     networks:
-      - your-network # Change Value
+      - n8n-runners
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=128m
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+          pids: 300
+        reservations:
+          memory: 128m
+          cpus: "0.1"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5680/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
 networks:
-    your-network: # Change Value
-      external: true
+  # External-facing: reverse proxy reaches n8n here (or via 127.0.0.1:5678).
+  n8n-front:
+    external: true
+  # Internal: n8n <-> postgres only, no internet egress.
+  n8n-db:
+    external: true
+  # Internal: n8n <-> runner only, no internet egress.
+  # Code nodes therefore can't make outbound calls — use n8n's HTTP Request
+  # node (which runs in n8n itself, on n8n-front) for that.
+  n8n-runners:
+    external: true
