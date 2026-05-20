@@ -18,7 +18,7 @@
 ## Features
 
 - **Topic-Based Threading** — Conversations organized by topic within streams
-- **Powerful Search** — Find any message instantly, with full-text search (pgroonga)
+- **Powerful Search** — Find any message instantly, with full-text search (postgres tsvector by default; pgroonga available as an optional swap)
 - **Markdown Support** — Rich formatting, code blocks, LaTeX, syntax highlighting
 - **Integrations** — 100+ integrations (GitHub, Jira, GitLab, PagerDuty, etc.)
 - **Mobile Apps** — iOS, Android, and desktop applications
@@ -64,11 +64,11 @@ Also set:
 
 ### 3. Create Data Directories with Correct Ownership
 
-All four backing services run non-root with hard-coded UIDs from their respective base images:
+All four backing services run non-root. Three of them have hard-coded UIDs from their respective base images, so the volumes must be chowned before first boot:
 
 ```bash
 mkdir -p data/{postgres,rabbitmq,redis,zulip}
-sudo chown -R 70:70    data/postgres   # postgres user in zulip-postgresql:14
+sudo chown -R "${PUID:-1000}:${PGID:-1000}" data/postgres
 sudo chown -R 999:999  data/rabbitmq   # rabbitmq user in rabbitmq:4.2
 sudo chown -R 999:1000 data/redis      # redis user in redis:7.4-alpine
 # data/zulip is initialized by the zulip container on first boot.
@@ -160,10 +160,10 @@ Inbound SMTP (port 25) for the Zulip "email-to-Zulip" feature is not exposed by 
 
 | Path | Owner | Description |
 |------|-------|-------------|
-| `./data/postgres`  | 70:70    | PostgreSQL 14 datadir (Zulip-specific extensions installed inside the image) |
-| `./data/rabbitmq`  | 999:999  | RabbitMQ Mnesia, queues, schema |
-| `./data/redis`     | 999:1000 | Redis dump.rdb + appendonly files |
-| `./data/zulip`     | (init)   | Uploads, custom emoji, secrets cache, backup spool |
+| `./data/postgres`  | `${PUID}:${PGID}` | PostgreSQL 18 datadir (vanilla postgres image — no pgroonga; Zulip uses built-in tsvector search) |
+| `./data/rabbitmq`  | 999:999           | RabbitMQ Mnesia, queues, schema |
+| `./data/redis`     | 999:1000          | Redis dump.rdb + appendonly files |
+| `./data/zulip`     | (init)            | Uploads, custom emoji, secrets cache, backup spool |
 
 ### Backup
 
@@ -182,7 +182,7 @@ This template ships with a hardened default configuration:
 | Layer | Setting | Effect |
 |---|---|---|
 | Capabilities | `cap_drop: ALL` on every service. ZERO `cap_add` on postgres/memcached/rabbitmq/redis (all run non-root); Zulip server adds 6 caps for its supervisor-based init (CHOWN/SETGID/SETUID/DAC_OVERRIDE/FOWNER + NET_BIND_SERVICE for nginx :80) | Verified by test, May 2026 |
-| Non-root | postgres uid 70, memcached 11211, rabbitmq 999, redis 999 — all four backing services confirmed healthy without root | Zulip container itself runs root for the init phase, drops every long-running worker to uid 1000 via supervisor |
+| Non-root | postgres `${PUID}:${PGID}` (default 1000), memcached 11211, rabbitmq 999, redis 999 — all four backing services confirmed healthy without root | Zulip container itself runs root for the init phase, drops every long-running worker to uid 1000 via supervisor |
 | Privileges | `security_opt: no-new-privileges` everywhere | Setuid binaries can't gain caps mid-process |
 | IPC | `ipc: private` on all containers | Isolated SysV/POSIX IPC namespace |
 | Process budget | `pids: 300` (pg) / `100` (memcached) / `300` (rabbitmq) / `100` (redis) / `1024` (zulip) | Caps fork sprawl; Zulip has a high budget because supervisor spawns ~25 worker processes |
@@ -200,11 +200,13 @@ What's contained is still a lot: `cap_drop: ALL` removes every NET/SYS capabilit
 
 If you want stricter, you can run Zulip on a [user namespace](https://docs.docker.com/engine/security/userns-remap/) — see Docker's `userns-remap`. That fully de-maps in-container root to a low-privilege host uid.
 
-### Why `zulip/zulip-postgresql:14` and not `postgres:18.4`?
+### Why vanilla `postgres:18.4` instead of `zulip/zulip-postgresql:14`?
 
-Zulip server pins a specific postgres major in its puppet manifests (currently 14) and requires the **pgroonga** full-text search extension plus **tsearch_extras** to be present in the cluster. Upstream's `zulip/zulip-postgresql:14` image is the only one known to satisfy that contract. We still cap-drop, run it non-root (uid 70), and confine it to the `--internal` `zulip-db` network. The image is published by the Zulip core team from [zulip/zulip-postgresql](https://github.com/zulip/zulip-postgresql).
+Zulip Server 12 officially supports PostgreSQL 14, 15, 16, 17, **and 18** — and upstream actually ships `io_method=io_uring` optimizations on pg-18. Upstream's `docker-zulip` references `zulip/zulip-postgresql:14`, but that image hasn't been bumped in 7+ months and ties you to a major (pg-14) that reaches EOL in November 2026.
 
-When Zulip's server moves to postgres 15+ upstream, this template will follow.
+This template uses vanilla `postgres:18.4` with `SETTING_USING_PGROONGA=False`. Zulip falls back to PostgreSQL's built-in `tsvector` full-text search — which is fine for English/Latin-script teams and gets you a current postgres with active CVE patching. Verified by /tmp test in May 2026: full boot succeeds, all supervisor workers come up, no extension errors. Only `plpgsql` ends up loaded in the database.
+
+**If you need pgroonga** (better Japanese / CJK / non-Latin search), swap the postgres service back to `zulip/zulip-postgresql:14` and set `SETTING_USING_PGROONGA=True` in your `.env`. The chown command for `./data/postgres` becomes `sudo chown -R 70:70 data/postgres` because that image's postgres user is uid 70.
 
 ### Reverse-proxy TLS handoff
 

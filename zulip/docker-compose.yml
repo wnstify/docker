@@ -2,19 +2,23 @@
 # Self-hosted team chat with topic-based threading: https://zulip.com/
 #
 # Architecture (5 services, two-network split):
-#   - postgres   — zulip/zulip-postgresql:14 (Zulip-specific extensions:
-#                  pgroonga full-text search + tsearch_extras)
+#   - postgres   — official postgres:18.4 (vanilla, no pgroonga / tsearch_extras)
 #   - memcached  — official memcached:1.6.x-alpine (session cache, SASL auth)
 #   - rabbitmq   — official rabbitmq:4.2.x (event queue)
 #   - redis      — official redis:7.4.x-alpine (rate-limit counters)
 #   - zulip      — ghcr.io/zulip/zulip-server:12.0-0 (Django + Tornado +
 #                  nginx + supervisor, all in one image per upstream)
 #
-# Why not postgres:18.4 here? Zulip's server is hard-pinned in its puppet
-# manifests to a specific postgres major (currently 14) and requires
-# pgroonga + tsearch_extras extensions that are not in vanilla postgres.
-# zulip/zulip-postgresql:14 is the only image known to satisfy that
-# contract. We cap_drop and run it non-root just like any other DB.
+# Note on postgres choice: Zulip Server 12 officially supports postgres
+# 14, 15, 16, 17, and 18. Upstream's docker-zulip ships a stale
+# zulip/zulip-postgresql:14 image that bundles pgroonga + tsearch_extras
+# for CJK full-text search — useful for Japanese deployments, but
+# unnecessary for Latin-script teams. We use vanilla postgres:18.4 +
+# SETTING_USING_PGROONGA=False and let Zulip use built-in postgres
+# tsvector search instead. Verified by /tmp test (May 2026): boot
+# completes, supervisor brings up all workers, no extension errors.
+# If you need pgroonga for non-Latin search, swap to
+# zulip/zulip-postgresql:14 and set SETTING_USING_PGROONGA=True.
 #
 # Security baseline (verified by test, May 2026):
 #   - postgres / memcached / rabbitmq / redis: cap_drop: ALL, ZERO cap_add,
@@ -43,9 +47,9 @@
 #   docker network create zulip-front
 #   docker network create --internal zulip-db
 #   mkdir -p data/{postgres,rabbitmq,redis,zulip}
-#   sudo chown -R 70:70   data/postgres   # postgres uid in zulip-postgresql
-#   sudo chown -R 999:999 data/rabbitmq   # rabbitmq uid
-#   sudo chown -R 999:1000 data/redis     # redis uid:gid in redis-alpine
+#   sudo chown -R "${PUID:-1000}:${PGID:-1000}" data/postgres
+#   sudo chown -R 999:999  data/rabbitmq   # rabbitmq uid in rabbitmq:4.2
+#   sudo chown -R 999:1000 data/redis      # redis uid:gid in redis:7.4-alpine
 #   docker compose up -d
 #   # First boot takes 4-6 min while Zulip applies ~280 Django migrations.
 
@@ -54,18 +58,24 @@ name: zulip
 services:
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # DATABASE — Zulip's pinned postgres-14 image with pgroonga + tsearch_extras
+  # DATABASE — vanilla postgres:18.4, no pgroonga (Zulip uses built-in tsvector)
   # ═══════════════════════════════════════════════════════════════════════════
 
   postgres:
-    image: zulip/zulip-postgresql:14
+    image: postgres:18.4
     container_name: zulip-postgres
     restart: unless-stopped
-    user: "70:70"
+    user: "${PUID:-1000}:${PGID:-1000}"
     environment:
       POSTGRES_DB: zulip
       POSTGRES_USER: zulip
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?postgres password required}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      # Postgres 18 changed its default data dir; pin it back so users
+      # upgrading from postgres:17 don't need a migration.
+      PGDATA: /var/lib/postgresql/data
+      TZ: ${TZ:-Europe/Bratislava}
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     networks:
@@ -269,6 +279,10 @@ services:
       SETTING_EXTERNAL_HOST: ${SETTING_EXTERNAL_HOST:?external hostname required}
       SETTING_ZULIP_ADMINISTRATOR: ${SETTING_ZULIP_ADMINISTRATOR:?admin email required}
       ZULIP_AUTH_BACKENDS: ${ZULIP_AUTH_BACKENDS:-EmailAuthBackend}
+      # We use vanilla postgres (no pgroonga); Zulip falls back to the
+      # built-in postgres tsvector full-text search. Flip to "True" if
+      # you swap the postgres service to zulip/zulip-postgresql:14.
+      SETTING_USING_PGROONGA: ${SETTING_USING_PGROONGA:-False}
       # http_only=True: Zulip serves plain HTTP, reverse-proxy terminates TLS.
       # Flip to False and unset COMPOSE_PORT_HTTPS to have Zulip self-terminate.
       http_only: ${ZULIP_HTTP_ONLY:-True}
