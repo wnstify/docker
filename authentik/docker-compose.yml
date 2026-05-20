@@ -1,102 +1,276 @@
+# Authentik — Hardened Docker Compose (server + worker + postgres + redis)
+# Open-source SSO / identity provider: https://goauthentik.io/
+#
+# Architecture:
+#   - postgres  — official postgres:18.4 (internal-only net, no internet)
+#   - redis     — official redis:7.4.9-alpine (internal-only, password-protected)
+#   - server    — ghcr.io/goauthentik/server (web UI + API on 9000/9443)
+#   - worker    — same image, command: worker (Celery background tasks)
+#
+# Security baseline (verified by test, May 2026):
+#   - All four containers run as ${PUID}:${PGID} (no root) and need
+#     ZERO Linux capabilities — every service starts and runs healthy
+#     with cap_drop: ALL and no cap_add at all.
+#   - security_opt: no-new-privileges; ipc: private
+#   - tmpfs for ephemeral writes; deploy.resources limits incl. pids
+#   - Two-network split: authentik-front (external bridge — reverse-proxy
+#     reach + internet egress for SMTP / OIDC / webhooks) and
+#     authentik-db (--internal, no internet egress for postgres/redis)
+#   - 127.0.0.1 port binding — reverse proxy in front for TLS
+#   - Healthchecks gate startup via depends_on; built-in ak healthcheck
+#     for server/worker, pg_isready for postgres, redis-cli ping for redis
+#   - Postgres uses SCRAM-SHA-256 password auth (stronger than default md5)
+#   - Worker has NO docker.sock mount by default — see README for the
+#     optional outpost-integration upgrade path
+#
+# Setup:
+#   cp .env.example .env  &&  fill secrets (openssl recipes in the file)
+#   docker network create authentik-front
+#   docker network create --internal authentik-db
+#   mkdir -p data/{database,redis,media,certs,custom-templates}
+#   docker compose up -d
+
+name: authentik
+
 services:
-  postgresql:
-    image: docker.io/library/postgres:17-alpine
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DATABASE
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  postgres:
+    image: postgres:18.4
+    container_name: authentik-postgres
     restart: unless-stopped
-    user: "1000:1000"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 5s
-    volumes:
-      - ${PWD}/database:/var/lib/postgresql/data
+    user: "${PUID:-1000}:${PGID:-1000}"
     environment:
-      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
       POSTGRES_USER: ${PG_USER:-authentik}
+      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
       POSTGRES_DB: ${PG_DB:-authentik}
-    env_file:
-      - .env
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-    networks:
-      - your-network # Change Value
-  redis:
-    image: docker.io/library/redis:alpine
-    command: --save 60 1 --loglevel warning
-    restart: unless-stopped
-    user: "1000:1000"
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 3s
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      # Postgres 18 changed its default data dir; pin it back so users
+      # upgrading from postgres:17 don't need a migration.
+      PGDATA: /var/lib/postgresql/data
+      TZ: ${TZ:-Europe/Bratislava}
     volumes:
-      - ${PWD}/redis:/data
+      - ./data/database:/var/lib/postgresql/data
+    networks:
+      - authentik-db
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+      - /var/run/postgresql:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+          pids: 200
+        reservations:
+          memory: 256m
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -U ${PG_USER:-authentik} -d ${PG_DB:-authentik}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CACHE / TASK BROKER
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  redis:
+    image: redis:7.4.9-alpine
+    container_name: authentik-redis
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?redis password required}
+      - --save
+      - "60"
+      - "1"
+      - --loglevel
+      - warning
+    environment:
+      # REDISCLI_AUTH lets the healthcheck call redis-cli without putting
+      # the password on the command line (which would appear in ps).
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    volumes:
+      - ./data/redis:/data
     networks:
-      - your-network # Change Value
+      - authentik-db
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=64m
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+          pids: 100
+        reservations:
+          memory: 64m
+          cpus: "0.1"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WEB UI + API
+  # ═══════════════════════════════════════════════════════════════════════════
+
   server:
-    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2.2}
+    image: ghcr.io/goauthentik/server:2026.2.3
+    container_name: authentik-server
     restart: unless-stopped
     command: server
-    environment:
-      AUTHENTIK_REDIS__HOST: redis
-      AUTHENTIK_POSTGRESQL__HOST: postgresql
-      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
-      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
-    volumes:
-      - ${PWD}/media:/media
-      - ${PWD}/custom-templates:/templates
-    env_file:
-      - .env
-    ports:
-      - 127.0.0.1:${COMPOSE_PORT_HTTP:-9000}:9000 #Localhost only with reverse-proxy
-      - 127.0.0.1:${COMPOSE_PORT_HTTPS:-9443}:9443 #Localhost only with reverse-proxy
     depends_on:
-      postgresql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      # localhost-only — front with a reverse proxy for public TLS.
+      - "127.0.0.1:${COMPOSE_PORT_HTTP:-9000}:9000"
+      - "127.0.0.1:${COMPOSE_PORT_HTTPS:-9443}:9443"
+    environment:
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_REDIS__PASSWORD: ${REDIS_PASSWORD}
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+      AUTHENTIK_ERROR_REPORTING__ENABLED: ${AUTHENTIK_ERROR_REPORTING__ENABLED:-false}
+      TZ: ${TZ:-Europe/Bratislava}
+    # env_file pulls in optional AUTHENTIK_EMAIL__* and BOOTSTRAP vars
+    # without forcing them to be set.
+    env_file:
+      - .env
+    volumes:
+      - ./data/media:/media
+      - ./data/custom-templates:/templates
+    networks:
+      - authentik-front
+      - authentik-db
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=256m
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+          pids: 500
+        reservations:
+          memory: 512m
+          cpus: "0.25"
+    healthcheck:
+      # Built-in ak healthcheck; covers gunicorn + DB + redis reachability.
+      test: ["CMD", "ak", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    networks:
-      - your-network # Change Value
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # BACKGROUND WORKER (Celery)
+  # ═══════════════════════════════════════════════════════════════════════════
+
   worker:
-    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2.2}
+    image: ghcr.io/goauthentik/server:2026.2.3
+    container_name: authentik-worker
     restart: unless-stopped
     command: worker
-    environment:
-      AUTHENTIK_REDIS__HOST: redis
-      AUTHENTIK_POSTGRESQL__HOST: postgresql
-      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
-      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
-    # `user: root` and the docker socket volume are optional.
-    # See more for the docker socket integration here:
-    # https://goauthentik.io/docs/outposts/integrations/docker
-    # Removing `user: root` also prevents the worker from fixing the permissions
-    # on the mounted folders, so when removing this make sure the folders have the correct UID/GID
-    # (1000:1000 by default)
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${PWD}/media:/media
-      - ${PWD}/certs:/certs
-      - ${PWD}/custom-templates:/templates
-    env_file:
-      - .env
     depends_on:
-      postgresql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    environment:
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_REDIS__PASSWORD: ${REDIS_PASSWORD}
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_ERROR_REPORTING__ENABLED: ${AUTHENTIK_ERROR_REPORTING__ENABLED:-false}
+      TZ: ${TZ:-Europe/Bratislava}
+    env_file:
+      - .env
+    # NOTE: /var/run/docker.sock is INTENTIONALLY not mounted. Upstream
+    # mounts it as root so the worker can auto-deploy Docker outposts
+    # (proxy / LDAP / RADIUS), but that grants the worker process root on
+    # the host. The hardened default is "no docker socket, no root." See
+    # README for the optional outpost-integration upgrade path.
+    volumes:
+      - ./data/media:/media
+      - ./data/certs:/certs
+      - ./data/custom-templates:/templates
+    networks:
+      - authentik-front
+      - authentik-db
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=256m
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+          pids: 500
+        reservations:
+          memory: 512m
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "ak", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    networks:
-      - your-network # Change Value
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ═══════════════════════════════════════════════════════════════════════════
+
 networks:
-    your-network: # Change Value
-      external: true
+  # External-facing: reverse proxy reaches authentik via 127.0.0.1 port
+  # binding; also gives server/worker internet egress for SMTP, OIDC
+  # callbacks, outbound webhooks, LDAP source sync, etc.
+  authentik-front:
+    external: true
+  # Internal: postgres + redis only — no internet egress, no host port.
+  authentik-db:
+    external: true
