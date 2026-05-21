@@ -1,0 +1,101 @@
+name: Weekly release auto-tag
+
+# Tags vYYYY.MM.DD on Tuesdays (after the Monday weekly-audit + Tuesday
+# Scorecard runs) when commits exist since the last release tag. Pushing
+# the tag with GITHUB_TOKEN does NOT trigger release.yml (GitHub
+# suppresses that to prevent recursion), so this workflow dispatches
+# release.yml explicitly against the new tag via `gh workflow run`.
+#
+# Same-day reruns get .N suffixes (v2026.06.02, v2026.06.02.1, ...).
+# Manual override available via workflow_dispatch with force=true.
+
+on:
+  schedule:
+    - cron: '0 8 * * TUE'   # Tuesday 08:00 UTC
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Tag even if no commits since the last release'
+        type: boolean
+        default: false
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Decide, push tag, dispatch release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write   # create + push the annotated tag
+      actions: write    # dispatch release.yml via gh workflow run
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: true   # need creds to push the tag
+
+      - name: Determine next tag
+        id: next
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          today=$(date -u +%Y.%m.%d)
+          last_tag=$(git tag --list 'v*' --sort=-version:refname | head -n1 || true)
+          echo "Last tag: ${last_tag:-<none>}"
+
+          # Skip if there's nothing to release (unless force=true).
+          if [[ -n "${last_tag}" && "${FORCE}" != "true" ]]; then
+            commits=$(git rev-list --count "${last_tag}"..HEAD)
+            echo "Commits since ${last_tag}: ${commits}"
+            if [[ "${commits}" == "0" ]]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Nothing to release. Skipping."
+              exit 0
+            fi
+          fi
+
+          # Today's tag; suffix .N if the date is already used.
+          base="v${today}"
+          if ! git rev-parse "refs/tags/${base}" >/dev/null 2>&1; then
+            tag="${base}"
+          else
+            i=1
+            while git rev-parse "refs/tags/${base}.${i}" >/dev/null 2>&1; do
+              i=$((i+1))
+            done
+            tag="${base}.${i}"
+          fi
+
+          {
+            echo "tag=${tag}"
+            echo "skip=false"
+          } >> "$GITHUB_OUTPUT"
+          echo "Will tag: ${tag}"
+
+      - name: Create + push annotated tag
+        if: steps.next.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.next.outputs.tag }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "${TAG} — weekly auto-release"
+          git push origin "${TAG}"
+
+      - name: Dispatch release.yml against the new tag
+        if: steps.next.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.next.outputs.tag }}
+        run: |
+          gh workflow run release.yml --ref "${TAG}"
+          echo "Dispatched release.yml for ${TAG}."

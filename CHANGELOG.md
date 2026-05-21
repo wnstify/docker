@@ -10,6 +10,17 @@ SLSA build-provenance attestation — see [`VERIFICATION.md`](VERIFICATION.md).
 
 ## [Unreleased]
 
+### Added
+- Weekly auto-tag workflow (`.github/workflows/weekly-release.yml`): runs every
+  Tuesday at 08:00 UTC, tags `vYYYY.MM.DD` when commits exist since the last
+  release, then dispatches `release.yml` to publish the signed artifacts.
+
+### Changed
+- `release.yml` now also accepts `workflow_dispatch` so the auto-tag job can
+  chain into it (GitHub suppresses workflow triggers from `GITHUB_TOKEN`
+  pushes). Job is gated to `refs/tags/v*` so accidental dispatches against
+  `main` are no-ops.
+
 ## [2026.05.21] — Initial signed release
 
 First tagged, signed snapshot of the docker-compose template collection. This
