@@ -553,7 +553,7 @@ services:
 
   # Garage bootstrap: assigns layout, creates S3 bucket and API key
   garage-init:
-    image: docker.io/alpine:3.22.4
+    image: docker.io/alpine:3.23.4
     # needs root for apk add; one-shot container, exits immediately
     depends_on:
       garage:
