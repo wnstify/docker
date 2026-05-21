@@ -10,6 +10,41 @@ SLSA build-provenance attestation — see [`VERIFICATION.md`](VERIFICATION.md).
 
 ## [Unreleased]
 
+### Verified (round 2 — application-image bumps)
+Application-image bumps that were queued by Renovate but fell outside the
+DB-on-disk-format scope of the earlier verification pass. Tested in
+isolated /tmp environments with the same boot-on-existing-data-dir +
+zero-error-log methodology.
+
+- `freshrss 1.29.0-alpine → 1.29.1-alpine` (used by `freshrss`): SQLite
+  data dir survives, HTTP `/i/?c=auth` returns the login page with
+  `"version":"1.29.1"`, 0 error / fatal / panic lines.
+- `jellyfin 10.11.8 → 10.11.9` (lscr.io/linuxserver, used by `jellyfin`):
+  `/config` (database.xml, encoding.xml, network.xml, system.xml, data/,
+  log/, cache/) survives, `/System/Info/Public` reports `Version: 10.11.9`,
+  0 `[ERR]` / `[FTL]` / fatal / panic / exception lines.
+- `n8n 2.21.4 → 2.22.1` with `postgres 18` (used by `n8n`): n8n's own
+  schema migrations (`CreateEvaluationCollection1778496086558`,
+  `ReplaceAgentObservationTables1784000000001`,
+  `DropAgentExecutionWorkingMemory1784000000002`,
+  `LimitWorkflowVersionTriggerToContent1784000000003`,
+  `AddInsightsRawTimestampIdIndex1784000000004`, …) all ran cleanly
+  against the populated 2.21.4 DB. Tables: 91 → 93. 184 rows in the
+  `migrations` table post-upgrade. 0 error / fatal / panic lines.
+- `n8nio/runners 2.21.4 → 2.22.1` (companion to n8n): image config
+  (entrypoint, CMD, env vars including PYTHON_VERSION 3.13.13 and
+  N8N_RELEASE_TYPE) identical between versions. Standalone smoke shows
+  identical fail-fast config-validation behaviour
+  (`Failed to load config: AuthToken: missing required value:
+  N8N_RUNNERS_AUTH_TOKEN`) on both tags — no regression in the runner's
+  startup path.
+
+### Auto-merged
+- `mariadb 11.8.6 → 11.8.7` patch (PR #30) via the Renovate
+  `automerge: true` rule for battle-tested infra images. The major bump
+  PR (#40) targeting `v12` is open separately and was pre-flight-verified
+  in `[2026.05.21.1]`.
+
 ## [2026.05.21.2] — Lean release tarball
 
 ### Changed
