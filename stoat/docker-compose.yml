@@ -183,7 +183,7 @@ services:
 # =============================================================================
 
   api:
-    image: ghcr.io/stoatchat/api:v0.12.1
+    image: ghcr.io/stoatchat/api:v0.13.6
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -212,7 +212,7 @@ services:
           cpus: "0.25"
 
   events:
-    image: ghcr.io/stoatchat/events:v0.12.1
+    image: ghcr.io/stoatchat/events:v0.13.6
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -238,7 +238,7 @@ services:
           cpus: "0.25"
 
   autumn:
-    image: ghcr.io/stoatchat/file-server:v0.12.1
+    image: ghcr.io/stoatchat/file-server:v0.13.6
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -263,7 +263,7 @@ services:
           cpus: "0.25"
 
   january:
-    image: ghcr.io/stoatchat/proxy:v0.12.1
+    image: ghcr.io/stoatchat/proxy:v0.13.6
     restart: unless-stopped
     env_file: secrets.env
     volumes:
@@ -283,7 +283,7 @@ services:
           cpus: "0.1"
 
   gifbox:
-    image: ghcr.io/stoatchat/gifbox:v0.12.1
+    image: ghcr.io/stoatchat/gifbox:v0.13.6
     restart: unless-stopped
     env_file: secrets.env
     volumes:
@@ -303,7 +303,7 @@ services:
           cpus: "0.05"
 
   crond:
-    image: ghcr.io/stoatchat/crond:v0.12.1
+    image: ghcr.io/stoatchat/crond:v0.13.6
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -330,7 +330,7 @@ services:
           cpus: "0.1"
 
   pushd:
-    image: ghcr.io/stoatchat/pushd:v0.12.1
+    image: ghcr.io/stoatchat/pushd:v0.13.6
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
@@ -358,7 +358,7 @@ services:
           cpus: "0.1"
 
   voice-ingress:
-    image: ghcr.io/stoatchat/voice-ingress:v0.12.1
+    image: ghcr.io/stoatchat/voice-ingress:v0.13.6
     restart: unless-stopped
     env_file: secrets.env
     depends_on:
