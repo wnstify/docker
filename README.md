@@ -5,6 +5,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/wnstify/docker?style=flat-square)](https://github.com/wnstify/docker/stargazers)
 [![GitHub License](https://img.shields.io/github/license/wnstify/docker?style=flat-square)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/wnstify/docker?style=flat-square)](https://github.com/wnstify/docker/commits/main)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/wnstify/docker?style=flat-square&label=openssf%20scorecard)](https://scorecard.dev/viewer/?uri=github.com/wnstify/docker)
 
 Production-ready Docker Compose templates for self-hosting open-source applications. Every template is hardened to a uniform baseline — `cap_drop: ALL` with the minimum verified `cap_add`, `no-new-privileges`, `ipc: private`, internal-only Docker networks for database tiers, pinned image versions, healthchecks, and per-container resource limits. The current CVE state of every image is published in [AUDIT.md](AUDIT.md).
 
