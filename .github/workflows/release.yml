@@ -54,12 +54,14 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
 
-      - name: Sign SHA256SUMS (Sigstore keyless)
+      - name: Sign SHA256SUMS (Sigstore keyless, bundle format)
         working-directory: dist
         run: |
+          # cosign v3 default: emit a single Sigstore bundle containing
+          # signature + cert + Rekor inclusion proof. .sigstore.json is
+          # the extension Scorecard recognises as a Sigstore bundle.
           cosign sign-blob --yes \
-            --output-signature SHA256SUMS.sig \
-            --output-certificate SHA256SUMS.pem \
+            --bundle SHA256SUMS.sigstore.json \
             SHA256SUMS
 
       - name: Generate SLSA build-provenance attestation
@@ -96,5 +98,4 @@ jobs:
             "dist/${BASE}.tar.gz" \
             "dist/${BASE}.zip" \
             "dist/SHA256SUMS" \
-            "dist/SHA256SUMS.sig" \
-            "dist/SHA256SUMS.pem"
+            "dist/SHA256SUMS.sigstore.json"

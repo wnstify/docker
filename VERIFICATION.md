@@ -21,7 +21,7 @@ there is no long-lived private key to leak or rotate.
 ## 1. Download the release assets
 
 Pick the version you want from the [Releases page](https://github.com/wnstify/docker/releases)
-and download all five assets to the same directory. Example for
+and download all four assets to the same directory. Example for
 `v2026.05.21`:
 
 ```bash
@@ -33,8 +33,7 @@ gh release download "$TAG" \
   --pattern "${BASE}.tar.gz" \
   --pattern "${BASE}.zip" \
   --pattern "SHA256SUMS" \
-  --pattern "SHA256SUMS.sig" \
-  --pattern "SHA256SUMS.pem"
+  --pattern "SHA256SUMS.sigstore.json"
 ```
 
 ## 2. Verify file integrity (SHA256SUMS)
@@ -52,10 +51,13 @@ This confirms that `SHA256SUMS` (and therefore the archives it covers) was
 produced by **this repository's release workflow**, on a **tag matching `v*`**,
 on GitHub's official runners.
 
+The signature, signing certificate, and Rekor transparency-log inclusion
+proof are all packaged in a single `SHA256SUMS.sigstore.json` bundle
+(the modern Sigstore bundle format).
+
 ```bash
 cosign verify-blob \
-  --certificate          SHA256SUMS.pem \
-  --signature            SHA256SUMS.sig \
+  --bundle SHA256SUMS.sigstore.json \
   --certificate-identity-regexp '^https://github\.com/wnstify/docker/\.github/workflows/release\.yml@refs/tags/v.*$' \
   --certificate-oidc-issuer    'https://token.actions.githubusercontent.com' \
   SHA256SUMS
