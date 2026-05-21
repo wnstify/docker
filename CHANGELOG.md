@@ -39,9 +39,8 @@ All passed with zero error/fatal/panic lines in container logs.
   integer / list keys readable, `redis_version: 8.0.6`.
 - `rabbitmq 4.2.5-alpine → 4.3.0-alpine` (used by `stoat` and `zulip`):
   Mnesia DB survives, vhosts and user tags preserved, `RabbitMQ version:
-  4.3.0`. **Caveat:** the upgrade is safe only if the rabbitmq container
-  has a stable hostname; current compose files don't set one, see "Known
-  follow-up" below.
+  4.3.0`. Required pairing with the hostname fix below to be safe across
+  container recreation.
 - `stoatchat v0.12.1 → v0.13.6` (8-service set, used by `stoat`): all 8
   image tags pull, Dockerfile-level config identical (entrypoint, env,
   labels), binary boots cleanly reporting `revolt-delta@0.13.6`.
@@ -50,14 +49,27 @@ All passed with zero error/fatal/panic lines in container logs.
   review only; our inputs unchanged across all version jumps. No workflow
   edits required.
 
-### Known follow-up (pre-rabbitmq-bump)
-- `zulip/docker-compose.yml` and `stoat/docker-compose.yml` do not set
-  `hostname:` or `RABBITMQ_NODENAME` on their rabbitmq service. RabbitMQ
-  stores Mnesia data under `mnesia/rabbit@<container-hostname>/`; any
-  container recreation (image bump, env change, manual `--force-recreate`)
-  gets a new random hostname and starts as a fresh "virgin node", leaving
-  the old node's data orphaned on disk. Add `hostname: rabbitmq` to both
-  stacks **before** merging the rabbitmq 4.3.0 Renovate PR.
+### Fixed
+- **rabbitmq hostname stability** in `zulip/docker-compose.yml` and
+  `stoat/docker-compose.yml`. Neither template previously set `hostname:`
+  on the rabbitmq service. RabbitMQ stores Mnesia data under
+  `mnesia/rabbit@<container-hostname>/`; any container recreation (image
+  bump, env change, manual `--force-recreate`) got a new random hostname
+  and started as a fresh "virgin node", orphaning the old node's data on
+  disk. Now sets `hostname: rabbitmq` (zulip) / `hostname: rabbit` (stoat)
+  to lock the Erlang node name across recreations. Verified end-to-end:
+  vhosts and user tags survive `--force-recreate`, and the Mnesia dir
+  contains only the expected `rabbit@<stable-hostname>/` directory.
+
+  **Migration note for existing deployers**: if you already have a
+  running deployment of either stack, you must rename your existing
+  Mnesia directory before the next container restart. Find the current
+  node directory (e.g. `./data/rabbit/mnesia/rabbit@<some-random-id>/`)
+  and rename it to `rabbit@rabbitmq/` (zulip) or `rabbit@rabbit/` (stoat),
+  then do the same rename inside `mnesia/rabbit@<some-random-id>-feature_flags`
+  and `mnesia/rabbit@<some-random-id>-plugins-expand`. Without this
+  rename the container will start fresh and existing vhosts / users /
+  queues will be unreachable. Fresh deployments are unaffected.
 
 ## [2026.05.21] — Initial signed release
 

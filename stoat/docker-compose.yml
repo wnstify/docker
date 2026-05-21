@@ -108,6 +108,11 @@ services:
 
   rabbit:
     image: docker.io/rabbitmq:4.2.5-alpine
+    # Stable Erlang node name across container recreations. Without this,
+    # the per-recreate random hostname makes the broker start as a fresh
+    # "virgin node" — vhosts / users / durable queues become inaccessible
+    # while their data is orphaned on disk under mnesia/rabbit@<old-id>/.
+    hostname: rabbit
     restart: unless-stopped
     user: "100:101"  # rabbitmq user inside image; data dir pre-chowned to match
     environment:

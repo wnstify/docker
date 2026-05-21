@@ -160,6 +160,11 @@ services:
   rabbitmq:
     image: rabbitmq:4.2.6
     container_name: zulip-rabbitmq
+    # Stable Erlang node name across container recreations. Without this,
+    # the per-recreate random hostname makes the broker start as a fresh
+    # "virgin node" — vhosts / users / durable queues become inaccessible
+    # while their data is orphaned on disk under mnesia/rabbit@<old-id>/.
+    hostname: rabbitmq
     restart: unless-stopped
     user: "999:999"
     environment:
