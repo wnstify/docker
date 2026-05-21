@@ -206,7 +206,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
 
   redis:
-    image: redis:7.4.9-alpine3.21
+    image: redis:8.0.6-alpine3.21
     container_name: zulip-redis
     restart: unless-stopped
     user: "999:1000"
