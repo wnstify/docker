@@ -20,7 +20,7 @@ name: jellyfin
 
 services:
   jellyfin:
-    image: lscr.io/linuxserver/jellyfin:10.11.8
+    image: lscr.io/linuxserver/jellyfin:10.11.9
     container_name: jellyfin
     restart: unless-stopped
     environment:
