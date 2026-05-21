@@ -33,7 +33,8 @@ gh release download "$TAG" \
   --pattern "${BASE}.tar.gz" \
   --pattern "${BASE}.zip" \
   --pattern "SHA256SUMS" \
-  --pattern "SHA256SUMS.sigstore.json"
+  --pattern "SHA256SUMS.sigstore.json" \
+  --pattern "${BASE}.intoto.jsonl"
 ```
 
 ## 2. Verify file integrity (SHA256SUMS)
@@ -71,13 +72,29 @@ repo's release workflow.
 
 ## 4. Verify the SLSA build-provenance attestation
 
-The attestation is stored in GitHub's attestation API (not the release
-assets) and links each archive byte-for-byte to the workflow run, commit,
-and runner that produced it.
+The provenance bundle (`${BASE}.intoto.jsonl`) is a Sigstore bundle wrapping
+a SLSA v1 in-toto attestation. It links each archive byte-for-byte to the
+workflow run, commit, and runner that produced it.
+
+The same bundle is also stored in GitHub's Attestations API, so verification
+works two ways:
+
+### Online (via API — no bundle download required)
 
 ```bash
 gh attestation verify "${BASE}.tar.gz" --repo wnstify/docker
 gh attestation verify "${BASE}.zip"    --repo wnstify/docker
+```
+
+### Offline (using the bundled attestation file)
+
+```bash
+gh attestation verify "${BASE}.tar.gz" \
+  --bundle "${BASE}.intoto.jsonl" \
+  --repo  wnstify/docker
+gh attestation verify "${BASE}.zip"    \
+  --bundle "${BASE}.intoto.jsonl" \
+  --repo  wnstify/docker
 ```
 
 Expected for each: `Loaded digest …` followed by

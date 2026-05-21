@@ -65,9 +65,23 @@ jobs:
             SHA256SUMS
 
       - name: Generate SLSA build-provenance attestation
+        id: attest
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
         with:
           subject-path: 'dist/wnstify-docker-*'
+
+      - name: Stage SLSA bundle as a release asset
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+          BASE: ${{ steps.ver.outputs.base }}
+        run: |
+          # actions/attest-build-provenance posts the bundle to GitHub's
+          # Attestations API by default, but Scorecard's Signed-Releases
+          # check only sees provenance if it's attached to the release
+          # itself. Copy the bundle alongside our other release assets
+          # using the .intoto.jsonl extension Scorecard recognises.
+          cp "${BUNDLE}" "dist/${BASE}.intoto.jsonl"
+          ls -la dist/
 
       - name: Build release notes (verification preamble + auto PR list)
         env:
@@ -98,4 +112,5 @@ jobs:
             "dist/${BASE}.tar.gz" \
             "dist/${BASE}.zip" \
             "dist/SHA256SUMS" \
-            "dist/SHA256SUMS.sigstore.json"
+            "dist/SHA256SUMS.sigstore.json" \
+            "dist/${BASE}.intoto.jsonl"
