@@ -1,0 +1,29 @@
+# Exclusions for `git archive` (release tarballs / zips produced by
+# .github/workflows/release.yml). The lean tarball ships only what a
+# downstream deployer needs: per-stack folders + their .env.example,
+# README, LICENSE, SECURITY, VERIFICATION, CHANGELOG.
+#
+# `git clone` is unaffected — contributors get everything.
+
+# This file itself
+.gitattributes      export-ignore
+
+# git / repo metadata
+.gitignore          export-ignore
+
+# CI infrastructure (workflows, helper scripts, scanners, scorecard config)
+.github/            export-ignore
+
+# Contributor tooling — only useful when developing in-tree
+.pre-commit-config.yaml export-ignore
+.yamllint.yml       export-ignore
+scripts/            export-ignore
+renovate.json       export-ignore
+
+# Audit snapshot — regenerated weekly by weekly-audit.yml; not tied to a
+# specific release tag, and large enough to dwarf the actual deliverable
+AUDIT.md            export-ignore
+
+# Community / contribution docs — not needed by deployers
+CONTRIBUTING.md     export-ignore
+CODE_OF_CONDUCT.md  export-ignore
