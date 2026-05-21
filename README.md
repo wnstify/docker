@@ -20,6 +20,7 @@ Production-ready Docker Compose templates for self-hosting open-source applicati
 - [Common Configuration](#common-configuration)
 - [Security Features](#security-features)
 - [Security Audit](#security-audit)
+- [Releases & Verification](#releases--verification)
 - [About Webnestify](#about-webnestify)
 - [Contributing](#contributing)
 - [Support](#support)
@@ -217,6 +218,17 @@ curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/inst
 # Scan a single image
 trivy image --severity CRITICAL,HIGH,MEDIUM,LOW --scanners vuln <image>:<tag>
 ```
+
+## Releases & Verification
+
+Releases are tagged with [Calendar Versioning](https://calver.org/) (`YYYY.MM.DD`) and signed end-to-end:
+
+- **Source archive** (`.tar.gz` + `.zip`) built from tracked files via `git archive`.
+- **`SHA256SUMS`** covering both archives.
+- **Sigstore keyless signature** (`SHA256SUMS.sigstore.json`) — bound to this repo's release workflow via short-lived OIDC certs (no long-lived private key to leak).
+- **SLSA build-provenance attestation** for each archive — verifiable with `gh attestation verify`.
+
+Notable changes are recorded in [CHANGELOG.md](CHANGELOG.md). Copy-paste verification commands (cosign + `gh attestation verify`) are in [VERIFICATION.md](VERIFICATION.md). The release workflow itself: [`.github/workflows/release.yml`](.github/workflows/release.yml).
 
 ---
 
