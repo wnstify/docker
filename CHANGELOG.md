@@ -10,6 +10,20 @@ SLSA build-provenance attestation — see [`VERIFICATION.md`](VERIFICATION.md).
 
 ## [Unreleased]
 
+## [2026.05.21.2] — Lean release tarball
+
+### Changed
+- `git archive` in `release.yml` now honours `.gitattributes` `export-ignore`
+  directives, so per-release source tarballs and zips ship only what a
+  downstream deployer needs: per-stack folders + their `*.env.example` files,
+  `README.md`, `LICENSE`, `SECURITY.md`, `VERIFICATION.md`, `CHANGELOG.md`.
+  Excluded from release archives (still in the repo): `.github/`,
+  `.gitignore`, `.pre-commit-config.yaml`, `.yamllint.yml`, `scripts/`,
+  `renovate.json`, `AUDIT.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`.
+  Tarball size drops from 111 files / 28 top-level entries to 90 / 22.
+  `git clone` is unaffected; signed-release verification (cosign + SLSA)
+  is unaffected.
+
 ## [2026.05.21.1] — Same-day curation release
 
 Same-day point release published to ship the rabbitmq hostname-stability fix
@@ -134,6 +148,7 @@ with cosign-signed checksums and a SLSA build-provenance attestation.
 - Branch isolation for PR scripts and Trivy installer to mitigate supply-chain
   risk from forked PRs.
 
-[Unreleased]: https://github.com/wnstify/docker/compare/v2026.05.21.1...HEAD
+[Unreleased]: https://github.com/wnstify/docker/compare/v2026.05.21.2...HEAD
+[2026.05.21.2]: https://github.com/wnstify/docker/releases/tag/v2026.05.21.2
 [2026.05.21.1]: https://github.com/wnstify/docker/releases/tag/v2026.05.21.1
 [2026.05.21]: https://github.com/wnstify/docker/releases/tag/v2026.05.21
