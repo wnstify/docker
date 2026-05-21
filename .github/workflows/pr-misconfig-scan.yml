@@ -1,0 +1,65 @@
+name: PR misconfig scan
+
+# Scans every PR for IaC misconfigurations (compose files, Dockerfiles,
+# workflow YAML, etc.) using Trivy's built-in policy set. Posts findings
+# as a sticky PR comment. Informational only — does not gate merge.
+#
+# To make it a required check later: add `misconfig` to branch protection's
+# required checks AND remove `--exit-code 0` below so the workflow fails
+# when HIGH/CRITICAL findings are present.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-misconfig-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  misconfig:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout PR HEAD
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v0.70.0/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
+
+      - name: Run trivy config
+        run: |
+          trivy config \
+            --severity HIGH,CRITICAL \
+            --format table \
+            --exit-code 0 \
+            --quiet \
+            . > misconfig.txt
+
+      - name: Render comment body
+        run: |
+          {
+            echo "## Trivy misconfiguration findings (HIGH + CRITICAL)"
+            echo ""
+            if [ -s misconfig.txt ]; then
+              echo "Findings below. Fix the issue or add an ignore entry to \`.trivyignore\` with a justification."
+              echo ""
+              echo '```'
+              cat misconfig.txt
+              echo '```'
+            else
+              echo "✅ No HIGH or CRITICAL misconfigurations detected."
+            fi
+          } > misconfig.md
+
+      - name: Post / update PR comment
+        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0  # v3.0.4
+        with:
+          header: misconfig-scan
+          path: misconfig.md
