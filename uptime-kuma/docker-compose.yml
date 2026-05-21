@@ -25,7 +25,7 @@ services:
   # Smaller surface (no s6-overlay), faster upstream patch flow, native
   # non-root user creation via MARIADB_USER/MARIADB_PASSWORD.
   mariadb:
-    image: docker.io/mariadb:11.8.7
+    image: docker.io/mariadb:12.2.2
     container_name: uptime-kuma-mariadb
     restart: unless-stopped
     environment:
