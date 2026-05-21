@@ -212,7 +212,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
 
   nginx:
-    image: nginx:1.30.1-alpine3.23
+    image: nginx:1.31.0-alpine3.23
     container_name: nextcloud-nginx
     restart: unless-stopped
     # Run as the image's nginx user (uid 101). Combined with listen 8080
