@@ -156,7 +156,7 @@ services:
     # Executes Code/Function nodes in a separate sandbox container.
     # Reaches n8n's broker on port 5679 over the n8n-runners network.
     # Note: runners are published to Docker Hub only, not docker.n8n.io.
-    image: n8nio/runners:2.21.4
+    image: n8nio/runners:2.22.1
     container_name: n8n-runner
     restart: unless-stopped
     depends_on:
