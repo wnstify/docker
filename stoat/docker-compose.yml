@@ -107,7 +107,7 @@ services:
       start_period: 10s
 
   rabbit:
-    image: docker.io/rabbitmq:4.2.5-alpine
+    image: docker.io/rabbitmq:4.3.0-alpine
     # Stable Erlang node name across container recreations. Without this,
     # the per-recreate random hostname makes the broker start as a fresh
     # "virgin node" — vhosts / users / durable queues become inaccessible

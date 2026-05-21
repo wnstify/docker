@@ -158,7 +158,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
 
   rabbitmq:
-    image: rabbitmq:4.2.6
+    image: rabbitmq:4.3.0
     container_name: zulip-rabbitmq
     # Stable Erlang node name across container recreations. Without this,
     # the per-recreate random hostname makes the broker start as a fresh
