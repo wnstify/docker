@@ -10,16 +10,39 @@ SLSA build-provenance attestation — see [`VERIFICATION.md`](VERIFICATION.md).
 
 ## [Unreleased]
 
+## [2026.05.21.1] — Same-day curation release
+
+Same-day point release published to ship the rabbitmq hostname-stability fix
+and the upgrade-verification record without waiting for the Tuesday auto-tag.
+Signed source archives, cosign keyless signature over `SHA256SUMS`, and a
+SLSA build-provenance attestation are attached as release assets — see
+[`VERIFICATION.md`](VERIFICATION.md).
+
 ### Added
 - Weekly auto-tag workflow (`.github/workflows/weekly-release.yml`): runs every
   Tuesday at 08:00 UTC, tags `vYYYY.MM.DD` when commits exist since the last
   release, then dispatches `release.yml` to publish the signed artifacts.
+- "Releases & Verification" section in `README.md` pointing at `CHANGELOG.md`,
+  `VERIFICATION.md`, and the release workflow.
+- OpenSSF Best Practices "passing" badge in the README (project 12931).
 
 ### Changed
 - `release.yml` now also accepts `workflow_dispatch` so the auto-tag job can
   chain into it (GitHub suppresses workflow triggers from `GITHUB_TOKEN`
   pushes). Job is gated to `refs/tags/v*` so accidental dispatches against
   `main` are no-ops.
+- `release.yml` now copies the `actions/attest-build-provenance` bundle to a
+  `.intoto.jsonl` release asset, so OpenSSF Scorecard's Signed-Releases check
+  sees provenance attached to the release (it only inspects assets, not the
+  Attestations API).
+- `pr-misconfig-scan.yml` no longer claims "Findings below" on clean runs —
+  switched the conditional from `[ -s misconfig.txt ]` (always non-empty
+  because Trivy writes a Report Summary header) to capturing Trivy's
+  `--exit-code 1` signal.
+- Branch protection on `main` tightened: `enforce_admins: true`, plus
+  `required_pull_request_reviews` with `dismiss_stale_reviews: true` and
+  `require_code_owner_reviews: true` (0 approvals required to keep the
+  solo-maintainer workflow functional).
 
 ### Verified
 Pre-flight upgrade testing for the major/minor bumps queued in Renovate
@@ -111,5 +134,6 @@ with cosign-signed checksums and a SLSA build-provenance attestation.
 - Branch isolation for PR scripts and Trivy installer to mitigate supply-chain
   risk from forked PRs.
 
-[Unreleased]: https://github.com/wnstify/docker/compare/v2026.05.21...HEAD
+[Unreleased]: https://github.com/wnstify/docker/compare/v2026.05.21.1...HEAD
+[2026.05.21.1]: https://github.com/wnstify/docker/releases/tag/v2026.05.21.1
 [2026.05.21]: https://github.com/wnstify/docker/releases/tag/v2026.05.21
