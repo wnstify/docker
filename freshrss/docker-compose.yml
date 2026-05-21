@@ -29,7 +29,7 @@ services:
     #   - Single-process container (Apache as PID 1), no s6-overlay
     #   - 25 MB compressed (smaller than the LSIO build)
     # See README "Why upstream-official?" for the full comparison.
-    image: freshrss/freshrss:1.29.0-alpine
+    image: freshrss/freshrss:1.29.1-alpine
     container_name: freshrss
     restart: unless-stopped
     environment:
