@@ -40,27 +40,39 @@ jobs:
           sudo install -m 755 trivy /usr/local/bin/trivy
 
       - name: Run trivy config
+        id: trivy
         run: |
+          # --exit-code 1 makes Trivy return 1 when findings exist (0 when clean).
+          # We capture and branch on that explicitly: `-s misconfig.txt` is no good
+          # because Trivy always writes a Report Summary header, so the file is
+          # never empty even with zero findings.
+          set +e
           trivy config \
             --severity HIGH,CRITICAL \
             --format table \
-            --exit-code 0 \
+            --exit-code 1 \
             --quiet \
             . > misconfig.txt
+          code=$?
+          set -e
+          echo "exit_code=${code}" >> "$GITHUB_OUTPUT"
+          echo "Trivy exit: ${code}  (0 = clean, 1 = findings, other = error)"
 
       - name: Render comment body
+        env:
+          TRIVY_EXIT: ${{ steps.trivy.outputs.exit_code }}
         run: |
           {
             echo "## Trivy misconfiguration findings (HIGH + CRITICAL)"
             echo ""
-            if [ -s misconfig.txt ]; then
+            if [ "${TRIVY_EXIT}" = "0" ]; then
+              echo "✅ No HIGH or CRITICAL misconfigurations detected."
+            else
               echo "Findings below. Fix the issue or add an ignore entry to \`.trivyignore\` with a justification."
               echo ""
               echo '```'
               cat misconfig.txt
               echo '```'
-            else
-              echo "✅ No HIGH or CRITICAL misconfigurations detected."
             fi
           } > misconfig.md
 
