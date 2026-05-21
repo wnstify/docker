@@ -31,7 +31,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
 
   mongodb:
-    image: mongo:8.0.23
+    image: mongo:8.3.2
     container_name: meshcentral-mongodb
     restart: unless-stopped
     # Run as host UID:GID so the bind-mounted /data/db is writable without
