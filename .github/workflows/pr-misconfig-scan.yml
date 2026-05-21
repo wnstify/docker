@@ -2,11 +2,9 @@ name: PR misconfig scan
 
 # Scans every PR for IaC misconfigurations (compose files, Dockerfiles,
 # workflow YAML, etc.) using Trivy's built-in policy set. Posts findings
-# as a sticky PR comment. Informational only — does not gate merge.
-#
-# To make it a required check later: add `misconfig` to branch protection's
-# required checks AND remove `--exit-code 0` below so the workflow fails
-# when HIGH/CRITICAL findings are present.
+# as a sticky PR comment AND fails the job on HIGH/CRITICAL findings so
+# branch protection can require it. Add `misconfig` to branch
+# protection's required_status_checks.contexts to fully enforce.
 
 on:
   pull_request:
@@ -77,7 +75,21 @@ jobs:
           } > misconfig.md
 
       - name: Post / update PR comment
+        if: always()
         uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0  # v3.0.4
         with:
           header: misconfig-scan
           path: misconfig.md
+
+      - name: Fail job if HIGH/CRITICAL findings exist
+        env:
+          TRIVY_EXIT: ${{ steps.trivy.outputs.exit_code }}
+        run: |
+          # Trivy exit codes: 0 = clean, 1 = findings, other = error.
+          # We post the comment first (above, if: always()) so reviewers see
+          # the findings, then fail this job so branch protection can block
+          # the merge when `misconfig` is in required_status_checks.contexts.
+          if [ "${TRIVY_EXIT}" != "0" ]; then
+            echo "::error::Trivy reported HIGH/CRITICAL misconfigurations (exit ${TRIVY_EXIT}). See sticky comment for details."
+            exit "${TRIVY_EXIT}"
+          fi

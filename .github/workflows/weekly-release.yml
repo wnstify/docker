@@ -81,14 +81,70 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Will tag: ${tag}"
 
-      - name: Create + push annotated tag
+      - name: Build CHANGELOG entry from auto-generated notes
+        id: notes
+        if: steps.next.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.next.outputs.tag }}
+        run: |
+          # gh api releases/generate-notes works even when the tag doesn't
+          # exist yet — it uses HEAD vs previous_tag_name heuristics.
+          body=$(gh api -X POST "/repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f "tag_name=${TAG}" --jq '.body')
+          {
+            printf '## [%s] - %s\n\n' "${TAG#v}" "$(date -u +%F)"
+            printf '%s\n\n' "${body}"
+          } > /tmp/changelog-entry.md
+          echo "Auto-generated CHANGELOG entry:"
+          cat /tmp/changelog-entry.md
+
+      - name: Commit CHANGELOG update + create + push annotated tag
         if: steps.next.outputs.skip != 'true'
         env:
           TAG: ${{ steps.next.outputs.tag }}
         run: |
+          # The CHANGELOG update is committed on a detached HEAD off main, then
+          # tagged. Only the tag is pushed — main's CHANGELOG.md is unchanged.
+          # This avoids needing a branch-protection bypass, while ensuring the
+          # released tarball (built from `git archive HEAD` at the tag) contains
+          # the up-to-date CHANGELOG. The next run reads CHANGELOG.md from the
+          # last tag (not main) so entries accumulate correctly tag-to-tag.
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Read the CHANGELOG from the last tag (so entries accumulate across
+          # releases even though main's CHANGELOG.md stays at the last
+          # manually-touched state). Fall back to main's CHANGELOG.md if no
+          # tag exists yet.
+          last_tag=$(git tag --list 'v*' --sort=-version:refname | head -n1 || true)
+          if [ -n "${last_tag}" ] && git rev-parse "refs/tags/${last_tag}" >/dev/null 2>&1; then
+            git show "${last_tag}:CHANGELOG.md" > /tmp/CHANGELOG.prev
+          else
+            cp CHANGELOG.md /tmp/CHANGELOG.prev
+          fi
+
+          # Insert the new dated entry immediately before the first existing
+          # `## [...]` section. Preserves the intro paragraph above and every
+          # existing section below (including [Unreleased] if present) without
+          # rewriting them.
+          first_section=$(grep -n '^## \[' /tmp/CHANGELOG.prev | head -n1 | cut -d: -f1)
+          if [ -z "${first_section}" ]; then
+            echo "::error::CHANGELOG.md has no '## [...]' sections — aborting auto-update"
+            exit 1
+          fi
+          {
+            head -n "$((first_section - 1))" /tmp/CHANGELOG.prev
+            cat /tmp/changelog-entry.md
+            tail -n "+${first_section}" /tmp/CHANGELOG.prev
+          } > /tmp/CHANGELOG.new
+
+          mv /tmp/CHANGELOG.new CHANGELOG.md
+
+          git add CHANGELOG.md
+          git commit -m "Record ${TAG} in CHANGELOG"
           git tag -a "${TAG}" -m "${TAG} — weekly auto-release"
+          # Push only the tag. The CHANGELOG commit is reachable via the tag.
           git push origin "${TAG}"
 
       - name: Dispatch release.yml against the new tag

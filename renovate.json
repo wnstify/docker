@@ -11,7 +11,8 @@
   "rangeStrategy": "pin",
   "schedule": ["after 6am and before 10am on monday"],
   "prHourlyLimit": 4,
-  "prConcurrentLimit": 10,
+  "prConcurrentLimit": 5,
+  "minimumReleaseAge": "3 days",
   "ignorePaths": [
     "AUDIT.md",
     "**/test/**"
@@ -85,7 +86,7 @@
       "platformAutomerge": true
     },
     {
-      "description": "Application images: require human review for any update type",
+      "description": "Application images: auto-merge patch+minor after PR gates pass. minimumReleaseAge (3d) at root gives upstream a window to hotfix bad releases before this lands. Major updates are still gated by the last rule below.",
       "matchDatasources": ["docker"],
       "matchPackageNames": [
         "ghcr.io/goauthentik/server",
@@ -110,7 +111,10 @@
         "ghcr.io/stoatchat/**",
         "docker.io/dxflrs/garage"
       ],
-      "automerge": false
+      "matchUpdateTypes": ["patch", "minor", "digest", "pinDigest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
     },
     {
       "description": "Major updates always need human review and the [breaking] label",
