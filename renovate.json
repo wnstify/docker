@@ -4,7 +4,8 @@
     "config:recommended",
     ":dependencyDashboard",
     ":semanticCommits",
-    ":timezone(Europe/Bratislava)"
+    ":timezone(Europe/Bratislava)",
+    "helpers:pinGitHubActionDigests"
   ],
   "labels": ["renovate"],
   "rangeStrategy": "pin",

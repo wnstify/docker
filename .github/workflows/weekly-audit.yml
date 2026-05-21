@@ -21,15 +21,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v0.70.0/contrib/install.sh \
             | sudo sh -s -- -b /usr/local/bin
 
       - name: Cache Trivy DB
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: ~/.cache/trivy
           key: trivy-db-${{ github.run_id }}
@@ -45,7 +45,7 @@ jobs:
 
       - name: Download previous week's scan artifact
         id: previous
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11  # v6
         with:
           workflow: weekly-audit.yml
           name: trivy-scans
@@ -97,7 +97,7 @@ jobs:
           PY
 
       - name: Upload current scans as next week's artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: trivy-scans
           path: .audit/scans/
@@ -105,7 +105,7 @@ jobs:
 
       - name: Open / update audit PR
         if: steps.delta.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676  # v7.0.11
         with:
           branch: chore/weekly-audit-refresh
           base: main
