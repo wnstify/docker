@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: weekly-audit
@@ -18,15 +18,24 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: write       # peter-evans/create-pull-request pushes branch
+      pull-requests: write  # ...and opens/updates the PR
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Install Trivy
+        env:
+          TRIVY_VERSION: '0.70.0'
+          TRIVY_SHA256: '8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9'
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v0.70.0/contrib/install.sh \
-            | sudo sh -s -- -b /usr/local/bin
+          curl -sfLo trivy.tgz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "${TRIVY_SHA256}  trivy.tgz" | sha256sum -c -
+          tar -xzf trivy.tgz trivy
+          sudo install -m 755 trivy /usr/local/bin/trivy
 
       - name: Cache Trivy DB
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
