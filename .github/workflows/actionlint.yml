@@ -1,0 +1,37 @@
+name: actionlint
+
+# Lints workflow YAML for shell injection, dead code, unused secrets,
+# deprecated patterns, and syntax errors. Runs on every PR that touches
+# .github/workflows/** so misconfigurations are caught before merge.
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ACTIONLINT_VERSION: '1.7.12'
+      ACTIONLINT_SHA256: '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Install actionlint (pinned + sha256 verified)
+        run: |
+          curl -sfLo actionlint.tgz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  actionlint.tgz" | sha256sum -c -
+          tar xf actionlint.tgz actionlint
+          chmod +x actionlint
+
+      - name: Run actionlint
+        run: ./actionlint -color
