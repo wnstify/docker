@@ -29,7 +29,7 @@ jobs:
             | sudo sh -s -- -b /usr/local/bin
 
       - name: Cache Trivy DB
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/trivy
           key: trivy-db-${{ github.run_id }}
