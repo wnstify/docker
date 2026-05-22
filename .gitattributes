@@ -12,7 +12,13 @@
 .gitignore          export-ignore
 
 # CI infrastructure (workflows, helper scripts, scanners, scorecard config)
-.github/            export-ignore
+# NOTE: .github/ must NOT be export-ignored. OpenSSF Scorecard scans the
+# repo via GitHub's tarball endpoint, which honors `.gitattributes`
+# export-ignore. Hiding .github/workflows/ from the tarball causes four
+# checks (Dangerous-Workflow, Pinned-Dependencies, Token-Permissions,
+# Packaging) to report "no workflows found" and skip with score -1
+# (rendered as "?" in the viewer). Same class of bug as the renovate.json
+# export-ignore restored in PR #45. Tracked upstream as ossf/scorecard#5069.
 
 # Contributor tooling — only useful when developing in-tree
 .pre-commit-config.yaml export-ignore
