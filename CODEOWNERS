@@ -1,0 +1,32 @@
+# CODEOWNERS — paths that require @wnstify approval before merge.
+#
+# Branch protection has `require_code_owner_reviews: true`, so any PR
+# touching these paths is blocked until @wnstify approves. Listing only
+# plumbing paths here (not routine compose / docs / template files) is
+# deliberate: it preserves Renovate auto-merge for routine image bumps
+# while gating high-risk changes that affect the security, CI, or
+# release pipeline.
+#
+# Why each line is here:
+# - .github/workflows/  CI/CD entry points; a compromised workflow runs
+#                       with repo secrets and write access.
+# - .github/scripts/    Helper scripts executed by workflows.
+# - /scripts/           Repo-level scripts (e.g. no-latest pre-commit gate).
+# - /SECURITY.md        Security policy + reporting contact.
+# - /.gitattributes     Controls the release tarball; export-ignore on the
+#                       wrong file silently hides it from Scorecard
+#                       (see Scorecard tarball-scan behaviour).
+# - /renovate.json      Dependency-update policy, including auto-merge rules.
+# - /.pre-commit-config.yaml + /.yamllint.yml   Contributor-side enforcement.
+# - /CODEOWNERS         Prevent self-elevation: any change here also
+#                       requires @wnstify.
+
+/.github/workflows/         @wnstify
+/.github/scripts/           @wnstify
+/scripts/                   @wnstify
+/SECURITY.md                @wnstify
+/.gitattributes             @wnstify
+/renovate.json              @wnstify
+/.pre-commit-config.yaml    @wnstify
+/.yamllint.yml              @wnstify
+/CODEOWNERS                 @wnstify

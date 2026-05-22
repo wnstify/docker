@@ -18,7 +18,11 @@
 .pre-commit-config.yaml export-ignore
 .yamllint.yml       export-ignore
 scripts/            export-ignore
-renovate.json       export-ignore
+# NOTE: renovate.json must NOT be export-ignored. OpenSSF Scorecard scans
+# the repo via GitHub's tarball endpoint, which honors `.gitattributes`
+# export-ignore. Hiding renovate.json from the tarball causes Scorecard's
+# Dependency-Update-Tool check to score 0 (false negative).
+# Tracked upstream against ossf/scorecard.
 
 # Audit snapshot — regenerated weekly by weekly-audit.yml; not tied to a
 # specific release tag, and large enough to dwarf the actual deliverable
