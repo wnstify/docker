@@ -229,7 +229,7 @@ Releases are tagged with [Calendar Versioning](https://calver.org/) (`YYYY.MM.DD
 - **Sigstore keyless signature** (`SHA256SUMS.sigstore.json`) — bound to this repo's release workflow via short-lived OIDC certs (no long-lived private key to leak).
 - **SLSA build-provenance attestation** for each archive — verifiable with `gh attestation verify`.
 
-Notable changes are recorded in [CHANGELOG.md](CHANGELOG.md). Copy-paste verification commands (cosign + `gh attestation verify`) are in [VERIFICATION.md](VERIFICATION.md). The release workflow itself: [`.github/workflows/release.yml`](.github/workflows/release.yml).
+Notable changes appear on the [Releases page](https://github.com/wnstify/docker/releases), auto-generated from merged PRs. Each release tarball also includes a [CHANGELOG.md](CHANGELOG.md) snapshot. Copy-paste verification commands (cosign + `gh attestation verify`) are in [VERIFICATION.md](VERIFICATION.md). The release workflow itself: [`.github/workflows/release.yml`](.github/workflows/release.yml).
 
 ---
 
