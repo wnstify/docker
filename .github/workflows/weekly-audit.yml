@@ -113,6 +113,7 @@ jobs:
           retention-days: 100
 
       - name: Open / update audit PR
+        id: audit_pr
         if: steps.delta.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1  # v8.1.1
         with:
@@ -127,6 +128,15 @@ jobs:
             automated
           add-paths: |
             AUDIT.md
+
+      - name: Enable auto-merge on audit PR
+        if: steps.audit_pr.outputs.pull-request-operation == 'created' || steps.audit_pr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ steps.audit_pr.outputs.pull-request-number }}" \
+            --repo "${{ github.repository }}" \
+            --auto --squash --delete-branch
 
       - name: No-op note when unchanged
         if: steps.delta.outputs.changed == 'false'
