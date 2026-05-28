@@ -39,6 +39,7 @@ Production-ready Docker Compose templates for self-hosting open-source applicati
 | [Baserow](./baserow) | No-code database (Airtable alternative). Postgres 18 |
 | [DocuSeal](./docuseal) | Document signing and forms. Postgres 18, bundled Gotenberg |
 | [Nextcloud](./nextcloud) | File sync + collaboration. Postgres 18, Redis, FPM + nginx, cron |
+| [Syncthing](./syncthing) | Continuous peer-to-peer file synchronization (no cloud, end-to-end encrypted) |
 
 ### Media & Entertainment
 
@@ -149,6 +150,7 @@ docker/
 ├── qbittorrent/         # BitTorrent client
 ├── serpbear/            # SEO rank tracking
 ├── stoat/               # Discord-alternative chat
+├── syncthing/           # peer-to-peer file sync
 ├── uptime-kuma/         # monitoring + status pages
 ├── wg-adguard/          # WireGuard VPN + AdGuard DNS
 └── zulip/               # team chat

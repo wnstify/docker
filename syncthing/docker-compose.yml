@@ -1,0 +1,119 @@
+# Syncthing — Hardened Docker Compose (single service)
+# Continuous, peer-to-peer file synchronization: https://syncthing.net/
+#
+# Architecture (1 service):
+#   - syncthing — syncthing/syncthing:2.1.0 (upstream-official Alpine image;
+#                 single Go binary, SQLite index database since 2.0)
+#
+# Why the upstream-official image (not lscr.io/linuxserver/syncthing):
+#   - Published by The Syncthing Project directly
+#   - Single-process Alpine container; no s6-overlay init layer
+#   - Patched in lockstep with Syncthing releases
+#   - Multi-arch (amd64/arm64/arm/386/riscv64)
+#
+# Security baseline:
+#   - Runs as ${PUID}:${PGID} via the compose `user:` directive — the v2.1.0
+#     entrypoint detects non-root and takes its plain `exec` branch (no
+#     su-exec / chown / setcap), so cap_drop: ALL with ZERO cap_add is
+#     sufficient. All listen ports are unprivileged (8384/22000/21027), so
+#     no NET_BIND_SERVICE is needed.
+#   - security_opt: no-new-privileges; ipc: private
+#   - tmpfs for /tmp; deploy.resources limits incl. pids
+#   - GUI / REST API (8384) bound to 127.0.0.1 — a reverse proxy fronts TLS
+#     AND must enforce auth: a fresh Syncthing GUI ships with NO password,
+#     and that GUI is the full admin/REST API.
+#   - BEP sync protocol port 22000 (tcp + quic/udp) published on all host
+#     interfaces so remote devices connect directly; falls back to Syncthing
+#     relays (slower, still end-to-end encrypted) if the port is blocked.
+#   - Synced files live under /sync, kept separate from Syncthing's own
+#     config + index database in /var/syncthing.
+#   - Healthcheck hits the built-in unauthenticated /rest/noauth/health.
+#
+# Setup:
+#   cp .env.example .env  &&  set SYNC_DIR (+ PUID/PGID/TZ/ports)
+#   docker network create syncthing-front
+#   mkdir -p data                      # owned by your ${PUID}:${PGID}
+#   docker compose up -d
+#   # Then IMMEDIATELY set a GUI admin user/password (Actions -> Settings ->
+#   # GUI) or enforce auth at the reverse proxy before exposing it.
+
+name: syncthing
+
+services:
+
+  syncthing:
+    image: syncthing/syncthing:2.1.0
+    container_name: syncthing
+    restart: unless-stopped
+    # Run as the host UID/GID directly. The entrypoint detects non-root and
+    # skips its root-only setcap/chown/su-exec branch, so we keep cap_drop:
+    # ALL with zero cap_add. ./data must be writable by this UID/GID — the
+    # entrypoint does NOT chown when running non-root.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      TZ: ${TZ:-Europe/Bratislava}
+      # Bind the GUI/REST API to all interfaces *inside* the container; the
+      # host only publishes it on 127.0.0.1 (see ports). This is the image
+      # default, set explicitly to document the behaviour.
+      STGUIADDRESS: 0.0.0.0:8384
+    ports:
+      # Web GUI / REST API: localhost-only — front with a reverse proxy for
+      # public TLS, and enforce authentication there or in Syncthing itself.
+      - "127.0.0.1:${SYNCTHING_GUI_PORT:-8384}:8384"
+      # BEP sync protocol: must be reachable by peers, so publish on all
+      # interfaces. Forward this in your router/firewall for direct (non-relay)
+      # connections. TCP and QUIC (UDP) share the same port number.
+      - "${SYNCTHING_SYNC_PORT:-22000}:22000/tcp"
+      - "${SYNCTHING_SYNC_PORT:-22000}:22000/udp"
+      # Local (LAN) discovery is broadcast-based and does not traverse the
+      # Docker bridge NAT usefully, so it is left unpublished. Global discovery
+      # + the sync port above cover remote peers. Uncomment only if you run
+      # host networking or specifically need LAN broadcast discovery:
+      # - "21027:21027/udp"
+    volumes:
+      # Syncthing's own state: config/ (config.xml, device cert + key) and the
+      # SQLite index database. Back this up — losing it re-keys the device ID.
+      - ./data:/var/syncthing
+      # The files you actually sync. In the GUI, add folders pointing at
+      # /sync/<name>. Kept separate from ./data so backups stay clean.
+      - ${SYNC_DIR:?path to the directory tree you want to sync required}:/sync
+    networks:
+      - syncthing-front
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ipc: private
+    tmpfs:
+      - /tmp:size=128m
+    deploy:
+      resources:
+        limits:
+          # Index/scan memory scales with the number of synced files. Bump
+          # for very large folders (millions of files).
+          memory: 1g
+          cpus: "2.0"
+          pids: 200
+        reservations:
+          memory: 128m
+          cpus: "0.1"
+    healthcheck:
+      # Built-in unauthenticated health endpoint; returns {"status":"OK"}.
+      # curl ships in the image. -k tolerates the self-signed GUI cert in case
+      # STGUIADDRESS is ever switched to https.
+      test: ["CMD-SHELL", "curl -fkLsS -m 2 http://127.0.0.1:8384/rest/noauth/health | grep -q OK || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ═══════════════════════════════════════════════════════════════════════════
+
+networks:
+  # External bridge: the reverse proxy reaches the GUI via the 127.0.0.1 port
+  # binding. The sync protocol port is published on all host interfaces (not
+  # via this network) so remote devices can connect directly.
+  syncthing-front:
+    external: true

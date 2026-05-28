@@ -109,7 +109,8 @@
         "ghcr.io/wg-easy/wg-easy",
         "ghcr.io/zulip/zulip-server",
         "ghcr.io/stoatchat/**",
-        "docker.io/dxflrs/garage"
+        "docker.io/dxflrs/garage",
+        "syncthing/syncthing"
       ],
       "matchUpdateTypes": ["patch", "minor", "digest", "pinDigest"],
       "automerge": true,
