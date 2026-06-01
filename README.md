@@ -63,6 +63,7 @@ Production-ready Docker Compose templates for self-hosting open-source applicati
 | Template | Description |
 |---|---|
 | [Authentik](./authentik) | Identity provider with SSO, OAuth2, SAML, LDAP. Postgres 18 (Redis dropped in 2025.10+) |
+| [Vaultwarden](./vaultwarden) | Lightweight Bitwarden-compatible password manager. Postgres 18 |
 
 ### Communication & Collaboration
 
@@ -152,6 +153,7 @@ docker/
 ├── stoat/               # Discord-alternative chat
 ├── syncthing/           # peer-to-peer file sync
 ├── uptime-kuma/         # monitoring + status pages
+├── vaultwarden/         # Bitwarden-compatible password manager
 ├── wg-adguard/          # WireGuard VPN + AdGuard DNS
 └── zulip/               # team chat
 ```

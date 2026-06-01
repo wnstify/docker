@@ -105,6 +105,7 @@
         "towfiqi/serpbear",
         "louislam/uptime-kuma",
         "docker.io/louislam/uptime-kuma",
+        "vaultwarden/server",
         "adguard/adguardhome",
         "ghcr.io/wg-easy/wg-easy",
         "ghcr.io/zulip/zulip-server",
