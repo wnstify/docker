@@ -8,56 +8,75 @@ because it is a continuously delivered collection of templates rather than a
 semantically versioned API. Each release ships a signed source archive with a
 SLSA build-provenance attestation — see [`VERIFICATION.md`](VERIFICATION.md).
 
+## [2026.06.02] - 2026-06-02
+
+## What's Changed
+* Date the trim entry as [2026.05.21.2] post-release by @wnstfy in https://github.com/wnstify/docker/pull/29
+* chore(deps): update docker.io/mariadb docker tag to v11.8.7 by @renovate[bot] in https://github.com/wnstify/docker/pull/30
+* Record round-2 upgrade verification (app image bumps) by @wnstfy in https://github.com/wnstify/docker/pull/43
+* chore(deps): update lscr.io/linuxserver/jellyfin docker tag to v10.11.9 by @renovate[bot] in https://github.com/wnstify/docker/pull/32
+* chore(deps): update freshrss/freshrss docker tag to v1.29.1 by @renovate[bot] in https://github.com/wnstify/docker/pull/31
+* chore(deps): update docker.n8n.io/n8nio/n8n docker tag to v2.22.1 by @renovate[bot] in https://github.com/wnstify/docker/pull/33
+* chore(deps): update mongo docker tag to v8.3.2 by @renovate[bot] in https://github.com/wnstify/docker/pull/34
+* chore(deps): update n8nio/runners docker tag to v2.22.1 by @renovate[bot] in https://github.com/wnstify/docker/pull/35
+* chore(deps): update actions/upload-artifact action to v7 by @renovate[bot] in https://github.com/wnstify/docker/pull/38
+* chore(deps): update dawidd6/action-download-artifact action to v21 by @renovate[bot] in https://github.com/wnstify/docker/pull/39
+* chore(deps): update peter-evans/create-pull-request action to v8 by @renovate[bot] in https://github.com/wnstify/docker/pull/41
+* chore(deps): update docker.io/mariadb docker tag to v12 by @renovate[bot] in https://github.com/wnstify/docker/pull/40
+* chore(deps): update stoatchat to v0.13.6 by @renovate[bot] in https://github.com/wnstify/docker/pull/37
+* chore(deps): update redis docker tag to v8 by @renovate[bot] in https://github.com/wnstify/docker/pull/42
+* chore(deps): update rabbitmq to v4.3.0 by @renovate[bot] in https://github.com/wnstify/docker/pull/36
+* Switch app-image Renovate to auto-merge, harden PR gates, auto-generate CHANGELOG by @wnstfy in https://github.com/wnstify/docker/pull/44
+* Add CODEOWNERS for plumbing + unblock Scorecard Dependency-Update-Tool by @wnstfy in https://github.com/wnstify/docker/pull/45
+* Un-ignore .github/ in release tarball to unblock Scorecard workflow checks by @wnstfy in https://github.com/wnstify/docker/pull/48
+* Clarify Releases page is the canonical changelog source by @wnstfy in https://github.com/wnstify/docker/pull/49
+* chore(deps): update adguard/adguardhome docker tag to v0.107.76 by @renovate[bot] in https://github.com/wnstify/docker/pull/50
+* Weekly audit refresh: 26388722176 by @github-actions[bot] in https://github.com/wnstify/docker/pull/51
+* Auto-enable PR auto-merge in weekly-audit workflow by @wnstfy in https://github.com/wnstify/docker/pull/52
+* Fix CODEOWNERS owner: @wnstify (org, invalid) → @wnstfy (user) by @wnstfy in https://github.com/wnstify/docker/pull/53
+* Fix CVE gate hard-failing on baseline runs by @wnstfy in https://github.com/wnstify/docker/pull/55
+* Add hardened Syncthing Docker Compose template by @wnstfy in https://github.com/wnstify/docker/pull/54
+* Weekly audit refresh: 26741497515 by @github-actions[bot] in https://github.com/wnstify/docker/pull/56
+* Add hardened Vaultwarden template by @wnstfy in https://github.com/wnstify/docker/pull/57
+
+## New Contributors
+* @github-actions[bot] made their first contribution in https://github.com/wnstify/docker/pull/51
+
+**Full Changelog**: https://github.com/wnstify/docker/compare/v2026.05.21.2...v2026.06.02
+
+## [2026.05.26] - 2026-05-26
+
+## What's Changed
+* Date the trim entry as [2026.05.21.2] post-release by @wnstfy in https://github.com/wnstify/docker/pull/29
+* chore(deps): update docker.io/mariadb docker tag to v11.8.7 by @renovate[bot] in https://github.com/wnstify/docker/pull/30
+* Record round-2 upgrade verification (app image bumps) by @wnstfy in https://github.com/wnstify/docker/pull/43
+* chore(deps): update lscr.io/linuxserver/jellyfin docker tag to v10.11.9 by @renovate[bot] in https://github.com/wnstify/docker/pull/32
+* chore(deps): update freshrss/freshrss docker tag to v1.29.1 by @renovate[bot] in https://github.com/wnstify/docker/pull/31
+* chore(deps): update docker.n8n.io/n8nio/n8n docker tag to v2.22.1 by @renovate[bot] in https://github.com/wnstify/docker/pull/33
+* chore(deps): update mongo docker tag to v8.3.2 by @renovate[bot] in https://github.com/wnstify/docker/pull/34
+* chore(deps): update n8nio/runners docker tag to v2.22.1 by @renovate[bot] in https://github.com/wnstify/docker/pull/35
+* chore(deps): update actions/upload-artifact action to v7 by @renovate[bot] in https://github.com/wnstify/docker/pull/38
+* chore(deps): update dawidd6/action-download-artifact action to v21 by @renovate[bot] in https://github.com/wnstify/docker/pull/39
+* chore(deps): update peter-evans/create-pull-request action to v8 by @renovate[bot] in https://github.com/wnstify/docker/pull/41
+* chore(deps): update docker.io/mariadb docker tag to v12 by @renovate[bot] in https://github.com/wnstify/docker/pull/40
+* chore(deps): update stoatchat to v0.13.6 by @renovate[bot] in https://github.com/wnstify/docker/pull/37
+* chore(deps): update redis docker tag to v8 by @renovate[bot] in https://github.com/wnstify/docker/pull/42
+* chore(deps): update rabbitmq to v4.3.0 by @renovate[bot] in https://github.com/wnstify/docker/pull/36
+* Switch app-image Renovate to auto-merge, harden PR gates, auto-generate CHANGELOG by @wnstfy in https://github.com/wnstify/docker/pull/44
+* Add CODEOWNERS for plumbing + unblock Scorecard Dependency-Update-Tool by @wnstfy in https://github.com/wnstify/docker/pull/45
+* Un-ignore .github/ in release tarball to unblock Scorecard workflow checks by @wnstfy in https://github.com/wnstify/docker/pull/48
+* Clarify Releases page is the canonical changelog source by @wnstfy in https://github.com/wnstify/docker/pull/49
+* chore(deps): update adguard/adguardhome docker tag to v0.107.76 by @renovate[bot] in https://github.com/wnstify/docker/pull/50
+* Weekly audit refresh: 26388722176 by @github-actions[bot] in https://github.com/wnstify/docker/pull/51
+* Auto-enable PR auto-merge in weekly-audit workflow by @wnstfy in https://github.com/wnstify/docker/pull/52
+* Fix CODEOWNERS owner: @wnstify (org, invalid) → @wnstfy (user) by @wnstfy in https://github.com/wnstify/docker/pull/53
+
+## New Contributors
+* @github-actions[bot] made their first contribution in https://github.com/wnstify/docker/pull/51
+
+**Full Changelog**: https://github.com/wnstify/docker/compare/v2026.05.21.2...v2026.05.26
+
 ## [Unreleased]
-
-### Verified (round 2 — application-image bumps)
-Application-image bumps that were queued by Renovate but fell outside the
-DB-on-disk-format scope of the earlier verification pass. Tested in
-isolated /tmp environments with the same boot-on-existing-data-dir +
-zero-error-log methodology.
-
-- `freshrss 1.29.0-alpine → 1.29.1-alpine` (used by `freshrss`): SQLite
-  data dir survives, HTTP `/i/?c=auth` returns the login page with
-  `"version":"1.29.1"`, 0 error / fatal / panic lines.
-- `jellyfin 10.11.8 → 10.11.9` (lscr.io/linuxserver, used by `jellyfin`):
-  `/config` (database.xml, encoding.xml, network.xml, system.xml, data/,
-  log/, cache/) survives, `/System/Info/Public` reports `Version: 10.11.9`,
-  0 `[ERR]` / `[FTL]` / fatal / panic / exception lines.
-- `n8n 2.21.4 → 2.22.1` with `postgres 18` (used by `n8n`): n8n's own
-  schema migrations (`CreateEvaluationCollection1778496086558`,
-  `ReplaceAgentObservationTables1784000000001`,
-  `DropAgentExecutionWorkingMemory1784000000002`,
-  `LimitWorkflowVersionTriggerToContent1784000000003`,
-  `AddInsightsRawTimestampIdIndex1784000000004`, …) all ran cleanly
-  against the populated 2.21.4 DB. Tables: 91 → 93. 184 rows in the
-  `migrations` table post-upgrade. 0 error / fatal / panic lines.
-- `n8nio/runners 2.21.4 → 2.22.1` (companion to n8n): image config
-  (entrypoint, CMD, env vars including PYTHON_VERSION 3.13.13 and
-  N8N_RELEASE_TYPE) identical between versions. Standalone smoke shows
-  identical fail-fast config-validation behaviour
-  (`Failed to load config: AuthToken: missing required value:
-  N8N_RUNNERS_AUTH_TOKEN`) on both tags — no regression in the runner's
-  startup path.
-
-### Auto-merged
-- `mariadb 11.8.6 → 11.8.7` patch (PR #30) via the Renovate
-  `automerge: true` rule for battle-tested infra images. The major bump
-  PR (#40) targeting `v12` is open separately and was pre-flight-verified
-  in `[2026.05.21.1]`.
-
-## [2026.05.21.2] — Lean release tarball
-
-### Changed
-- `git archive` in `release.yml` now honours `.gitattributes` `export-ignore`
-  directives, so per-release source tarballs and zips ship only what a
-  downstream deployer needs: per-stack folders + their `*.env.example` files,
-  `README.md`, `LICENSE`, `SECURITY.md`, `VERIFICATION.md`, `CHANGELOG.md`.
-  Excluded from release archives (still in the repo): `.github/`,
-  `.gitignore`, `.pre-commit-config.yaml`, `.yamllint.yml`, `scripts/`,
-  `renovate.json`, `AUDIT.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`.
-  Tarball size drops from 111 files / 28 top-level entries to 90 / 22.
-  `git clone` is unaffected; signed-release verification (cosign + SLSA)
-  is unaffected.
 
 ## [2026.05.21.1] — Same-day curation release
 
@@ -183,7 +202,6 @@ with cosign-signed checksums and a SLSA build-provenance attestation.
 - Branch isolation for PR scripts and Trivy installer to mitigate supply-chain
   risk from forked PRs.
 
-[Unreleased]: https://github.com/wnstify/docker/compare/v2026.05.21.2...HEAD
-[2026.05.21.2]: https://github.com/wnstify/docker/releases/tag/v2026.05.21.2
+[Unreleased]: https://github.com/wnstify/docker/compare/v2026.05.21.1...HEAD
 [2026.05.21.1]: https://github.com/wnstify/docker/releases/tag/v2026.05.21.1
 [2026.05.21]: https://github.com/wnstify/docker/releases/tag/v2026.05.21
