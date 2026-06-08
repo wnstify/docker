@@ -446,7 +446,7 @@ services:
 # =============================================================================
 
   caddy:
-    image: docker.io/caddy:2.11.3
+    image: docker.io/caddy:2.11.4
     restart: unless-stopped
     # caddy binary has file capabilities — must run as root with cap_drop ALL
     env_file: .env.web
