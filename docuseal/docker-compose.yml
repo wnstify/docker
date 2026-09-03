@@ -92,7 +92,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
 
   app:
-    image: docuseal/docuseal:3.0.0
+    image: docuseal/docuseal:3.2.3
     container_name: docuseal-app
     restart: unless-stopped
     depends_on:
