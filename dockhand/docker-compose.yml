@@ -114,7 +114,7 @@ services:
   # DOCKHAND SERVER
   # ===========================================
   dockhand:
-    image: fnsys/dockhand:v1.0.29
+    image: fnsys/dockhand:v1.0.45
     container_name: dockhand
     hostname: dockhand
     user: "1000:1000"
