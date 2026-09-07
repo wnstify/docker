@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Scan date** | 2026-06-01 |
+| **Scan date** | 2026-09-07 |
 | **Scanner** | Trivy 0.70.0 |
-| **Vulnerability DB** | aquasec/trivy-db v2 — updated 2026-06-01 01:09:32 UTC |
+| **Vulnerability DB** | aquasec/trivy-db v2 — updated 2026-09-07 01:01:06 UTC |
 | **Scope** | Every image referenced in every `docker-compose.yml` in this repo (43 images, 17 templates) |
 | **Severities reported** | Critical / High / Medium / Low (Info, Negligible, and Unknown omitted as requested) |
 
