@@ -55,6 +55,7 @@ Production-ready Docker Compose templates for self-hosting open-source applicati
 |---|---|
 | [Dockhand](./dockhand) | Docker management UI with free SSO (Portainer alternative). Postgres + docker-socket-proxy |
 | [Uptime Kuma](./uptime-kuma) | Self-hosted monitoring + status pages. MariaDB backend |
+| [SiteWatcher](./sitewatcher) | Website uptime and response-time history, TLS and domain expiry alerts |
 | [MeshCentral](./meshcentral) | Remote monitoring & management (RMM). Vanilla MongoDB 8.0 |
 | [WireGuard + AdGuard](./wg-adguard) | WireGuard VPN (wg-easy) with AdGuard Home DNS filtering |
 

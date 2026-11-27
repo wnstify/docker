@@ -1,0 +1,46 @@
+name: sitewatcher
+
+x-sitewatcher: &sitewatcher
+  image: ghcr.io/nikkurkov/sitewatcher:sha-e2bae0f9da05bd91d695c6a6b8fb5241c37a5fc5@sha256:c66f8916f531331b11c732ee389f2d255e68f21707e155e5db76454c54894e8d
+  restart: unless-stopped
+  volumes:
+    - sitewatcher-data:/data
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  ipc: private
+  deploy:
+    resources:
+      limits:
+        memory: 256m
+        cpus: "1.0"
+        pids: 100
+
+services:
+  web:
+    <<: *sitewatcher
+    environment:
+      SITEWATCHER_WEB_BIND: "0.0.0.0"
+    ports:
+      - "127.0.0.1:${SITEWATCHER_PORT:-8080}:8080"
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8080/healthz", timeout=3)']
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+
+  worker:
+    <<: *sitewatcher
+    command: [sitewatcher, worker]
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, 'from pathlib import Path; assert Path("/proc/1/cmdline").read_bytes().split(b"\0")[-2] == b"worker"']
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+
+volumes:
+  sitewatcher-data:
